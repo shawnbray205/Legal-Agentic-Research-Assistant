@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoCounsel Legal Research Agent</title>
+    
+    <!-- jsPDF Library for PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            align-items: start;
+        }
+
+        @media (max-width: 968px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #1a202c;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 0.95rem;
+        }
+
+        .form-group textarea,
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .form-group textarea:focus,
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        #relevantFacts {
+            min-height: 180px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 640px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-top: 10px;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .results-container {
+            min-height: 400px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading p {
+            color: #4a5568;
+            font-size: 1rem;
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .results-header h3 {
+            color: #1a202c;
+            font-size: 1.2rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .doc-link, .pdf-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: background 0.2s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .doc-link {
+            background: #48bb78;
+        }
+
+        .doc-link:hover {
+            background: #38a169;
+        }
+
+        .pdf-link {
+            background: #e53e3e;
+        }
+
+        .pdf-link:hover {
+            background: #c53030;
+        }
+
+        .results-content {
+            line-height: 1.8;
+            color: #2d3748;
+        }
+
+        .results-content h4 {
+            color: #1a202c;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            font-size: 1.1rem;
+        }
+
+        .results-content p {
+            margin-bottom: 16px;
+        }
+
+        .results-content strong {
+            color: #1a202c;
+        }
+
+        .empty-state {
+            display: block;
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .empty-state p {
+            font-size: 1.1rem;
+        }
+
+        .error {
+            display: none;
+            padding: 16px;
+            background: #fed7d7;
+            border: 2px solid #fc8181;
+            border-radius: 8px;
+            color: #742a2a;
+            margin-bottom: 20px;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        .error strong {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .examples {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .examples h3 {
+            font-size: 1rem;
+            margin-bottom: 12px;
+            color: #2d3748;
+        }
+
+        .example-query {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+            color: #4a5568;
+        }
+
+        .example-query:hover {
+            background: #edf2f7;
+            transform: translateX(4px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚖️ CoCounsel</h1>
+            <p>AI-Powered Legal Research Assistant</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Query Form -->
+            <div class="card">
+                <h2>Submit Legal Research Query</h2>
+                
+                <form id="researchForm">
+                    <div class="form-group">
+                        <label for="legalIssue">Legal Issue/Question *</label>
+                        <textarea 
+                            id="legalIssue" 
+                            name="legalIssue" 
+                            required
+                            placeholder="What is the specific legal question? (e.g., 'Does my client have grounds to terminate the contract for material breach?')"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="relevantFacts">Relevant Facts *</label>
+                        <textarea 
+                            id="relevantFacts" 
+                            name="relevantFacts" 
+                            required
+                            placeholder="Describe the key facts in chronological order. Include:
+- Parties involved and their roles
+- Important dates and timeline
+- Specific actions taken or statements made
+- Any relevant documentation or evidence
+- Financial amounts or damages (if applicable)"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="desiredOutcome">Desired Outcome</label>
+                        <textarea 
+                            id="desiredOutcome" 
+                            name="desiredOutcome"
+                            placeholder="What does the client want to achieve? (e.g., 'Terminate contract and recover damages', 'Suppress evidence', 'Seek injunction')"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="jurisdiction">Jurisdiction *</label>
+                            <select id="jurisdiction" name="jurisdiction" required>
+                                <option value="">Select jurisdiction...</option>
+                                <option value="federal">Federal</option>
+                                <option value="Alabama">Alabama</option>
+                                <option value="Alaska">Alaska</option>
+                                <option value="Arizona">Arizona</option>
+                                <option value="Arkansas">Arkansas</option>
+                                <option value="California">California</option>
+                                <option value="Colorado">Colorado</option>
+                                <option value="Connecticut">Connecticut</option>
+                                <option value="Delaware">Delaware</option>
+                                <option value="Florida">Florida</option>
+                                <option value="Georgia">Georgia</option>
+                                <option value="Hawaii">Hawaii</option>
+                                <option value="Idaho">Idaho</option>
+                                <option value="Illinois">Illinois</option>
+                                <option value="Indiana">Indiana</option>
+                                <option value="Iowa">Iowa</option>
+                                <option value="Kansas">Kansas</option>
+                                <option value="Kentucky">Kentucky</option>
+                                <option value="Louisiana">Louisiana</option>
+                                <option value="Maine">Maine</option>
+                                <option value="Maryland">Maryland</option>
+                                <option value="Massachusetts">Massachusetts</option>
+                                <option value="Michigan">Michigan</option>
+                                <option value="Minnesota">Minnesota</option>
+                                <option value="Mississippi">Mississippi</option>
+                                <option value="Missouri">Missouri</option>
+                                <option value="Montana">Montana</option>
+                                <option value="Nebraska">Nebraska</option>
+                                <option value="Nevada">Nevada</option>
+                                <option value="New Hampshire">New Hampshire</option>
+                                <option value="New Jersey">New Jersey</option>
+                                <option value="New Mexico">New Mexico</option>
+                                <option value="New York">New York</option>
+                                <option value="North Carolina">North Carolina</option>
+                                <option value="North Dakota">North Dakota</option>
+                                <option value="Ohio">Ohio</option>
+                                <option value="Oklahoma">Oklahoma</option>
+                                <option value="Pennsylvania">Pennsylvania</option>
+                                <option value="Rhode Island">Rhode Island</option>
+                                <option value="South Carolina">South Carolina</option>
+                                <option value="South Dakota">South Dakota</option>
+                                <option value="Tennessee">Tennessee</option>
+                                <option value="Texas">Texas</option>
+                                <option value="Utah">Utah</option>
+                                <option value="Vermont">Vermont</option>
+                                <option value="Virginia">Virginia</option>
+                                <option value="Washington">Washington</option>
+                                <option value="West Virginia">West Virginia</option>
+                                <option value="Wisconsin">Wisconsin</option>
+                                <option value="Wyoming">Wyoming</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="practiceArea">Practice Area *</label>
+                            <select id="practiceArea" name="practiceArea" required>
+                                <option value="">Select practice area...</option>
+                                <option value="general">General</option>
+                                <option value="contract law">Contract Law</option>
+                                <option value="employment law">Employment Law</option>
+                                <option value="criminal law">Criminal Law</option>
+                                <option value="intellectual property">Intellectual Property</option>
+                                <option value="estate planning">Estate Planning</option>
+                                <option value="family law">Family Law</option>
+                                <option value="corporate law">Corporate Law</option>
+                                <option value="real estate">Real Estate</option>
+                                <option value="tax law">Tax Law</option>
+                                <option value="bankruptcy">Bankruptcy</option>
+                                <option value="immigration">Immigration</option>
+                                <option value="environmental law">Environmental Law</option>
+                                <option value="civil rights">Civil Rights</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 20px; padding: 16px; background: #f7fafc; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 0;">
+                            <input type="checkbox" id="enhancedAnalysis" name="enhancedAnalysis" style="width: auto; margin-right: 12px; cursor: pointer;">
+                            <span style="font-weight: 600; color: #2d3748;">
+                                🎯 Enhanced Analysis with Opposing Counsel
+                            </span>
+                        </label>
+                        <p style="font-size: 0.85rem; color: #718096; margin-top: 8px; margin-left: 28px; line-height: 1.5;">
+                            Includes strategic "devil's advocate" analysis to anticipate opposing arguments, identify weaknesses, and assess settlement leverage. <strong>Adds ~45 seconds to processing time.</strong>
+                        </p>
+                    </div>
+
+                    <button type="submit" class="btn" id="submitBtn">
+                        🔍 Research Legal Issue
+                    </button>
+                </form>
+
+                <div class="examples">
+                    <h3>📋 Example Queries (Click to use)</h3>
+                    <div class="example-query" 
+                         data-issue="Can my client terminate a software development contract for material breach?" 
+                         data-facts="Our company (TechCorp) contracted with VendorSoft on March 1, 2025 for custom CRM software. Contract specified delivery within 90 days (by June 1). VendorSoft missed the deadline. After repeated requests and deadline extensions, they still have not delivered core features. It is now January 2026 - 10 months late. Contract requires written notice of breach with 30-day cure period." 
+                         data-outcome="Terminate the contract immediately and recover $150,000 in damages for costs incurred and lost business opportunities."
+                         data-jurisdiction="California" 
+                         data-practice="contract law">
+                        Contract breach - software delivery failure
+                    </div>
+                    <div class="example-query" 
+                         data-issue="Do we have grounds for an age discrimination claim under federal law?" 
+                         data-facts="My client (John Smith, age 58) worked as a Marketing Manager at XYZ Corp for 15 years with consistently positive reviews. In November 2025, he was terminated and replaced by a 32-year-old employee. HR cited 'cultural fit' and 'need for fresh perspectives' but provided no documented performance issues. Three other employees over 50 were also terminated in the same quarter." 
+                         data-outcome="File an EEOC complaint and pursue damages for wrongful termination based on age discrimination."
+                         data-jurisdiction="federal" 
+                         data-practice="employment law">
+                        Age discrimination in employment
+                    </div>
+                    <div class="example-query" 
+                         data-issue="Can we suppress evidence obtained during a warrantless search of my client's apartment?" 
+                         data-facts="On December 15, 2025, police received a call from a neighbor reporting 'suspicious activity' at my client's apartment. Officers arrived at 10pm and knocked. When my client answered, officers claimed they smelled marijuana and entered without a warrant, citing exigent circumstances. They searched the apartment and found contraband. No warrant was ever obtained. Client did not consent to the search." 
+                         data-outcome="Suppress all evidence obtained during the warrantless search under the Fourth Amendment exclusionary rule."
+                         data-jurisdiction="New York" 
+                         data-practice="criminal law">
+                        Fourth Amendment - warrantless search
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Display -->
+            <div class="card results-container">
+                <div class="empty-state" id="emptyState">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p>Submit a query to see research results</p>
+                </div>
+
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Conducting legal research...</p>
+                    <p style="font-size: 0.9rem; margin-top: 10px; color: #718096;">This typically takes 2-3 minutes</p>
+                </div>
+
+                <div class="error" id="error">
+                    <strong>⚠️ Error</strong>
+                    <p id="errorMessage"></p>
+                </div>
+
+                <div class="results" id="results">
+                    <div class="results-header">
+                        <h3>Research Results</h3>
+                        <div class="action-buttons">
+                            <button id="pdfLink" class="pdf-link" style="display: none;">
+                                📥 Download PDF
+                            </button>
+                            <a href="#" id="docLink" class="doc-link" target="_blank" style="display: none;">
+                                📄 View Google Doc
+                            </a>
+                        </div>
+                    </div>
+                    <div class="results-content" id="resultsContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - Webhook URLs for both standard and enhanced analysis
+        const WEBHOOK_URL_STANDARD = 'https://sbray205.app.n8n.cloud/webhook/legal-research';
+        const WEBHOOK_URL_ENHANCED = 'https://sbray205.app.n8n.cloud/webhook/legal-research-enhanced';
+
+        const form = document.getElementById('researchForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const emptyState = document.getElementById('emptyState');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const errorMessage = document.getElementById('errorMessage');
+        const results = document.getElementById('results');
+        const resultsContent = document.getElementById('resultsContent');
+        const docLink = document.getElementById('docLink');
+        const pdfLink = document.getElementById('pdfLink');
+
+        // Store the current memorandum for PDF generation
+        let currentMemo = '';
+        let currentMetadata = {};
+
+        // Example queries click handlers
+        document.querySelectorAll('.example-query').forEach(example => {
+            example.addEventListener('click', () => {
+                document.getElementById('legalIssue').value = example.dataset.issue;
+                document.getElementById('relevantFacts').value = example.dataset.facts;
+                document.getElementById('desiredOutcome').value = example.dataset.outcome;
+                document.getElementById('jurisdiction').value = example.dataset.jurisdiction;
+                document.getElementById('practiceArea').value = example.dataset.practice;
+            });
+        });
+
+        // PDF Download Handler
+        pdfLink.addEventListener('click', () => {
+            generatePDF(currentMemo, currentMetadata);
+        });
+
+        // Form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Determine which workflow to use based on Enhanced Analysis checkbox
+            const enhancedAnalysis = document.getElementById('enhancedAnalysis').checked;
+            const WEBHOOK_URL = enhancedAnalysis ? WEBHOOK_URL_ENHANCED : WEBHOOK_URL_STANDARD;
+
+            // Hide all states
+            emptyState.style.display = 'none';
+            error.classList.remove('active');
+            results.classList.remove('active');
+            loading.classList.add('active');
+            submitBtn.disabled = true;
+            
+            // Update button and loading text based on analysis type
+            if (enhancedAnalysis) {
+                submitBtn.textContent = '⏳ Running Enhanced Analysis...';
+                loading.querySelector('p:first-of-type').textContent = 'Conducting enhanced legal research with opposing counsel analysis...';
+                loading.querySelector('p:last-of-type').textContent = 'This typically takes 3-4 minutes';
+            } else {
+                submitBtn.textContent = '⏳ Researching...';
+                loading.querySelector('p:first-of-type').textContent = 'Conducting legal research...';
+                loading.querySelector('p:last-of-type').textContent = 'This typically takes 2-3 minutes';
+            }
+
+            // Get form data and construct comprehensive query
+            const legalIssue = document.getElementById('legalIssue').value;
+            const relevantFacts = document.getElementById('relevantFacts').value;
+            const desiredOutcome = document.getElementById('desiredOutcome').value;
+            const jurisdiction = document.getElementById('jurisdiction').value;
+            const practiceArea = document.getElementById('practiceArea').value;
+
+            // Combine into structured query
+            let combinedQuery = `LEGAL ISSUE:\n${legalIssue}\n\n`;
+            combinedQuery += `RELEVANT FACTS:\n${relevantFacts}\n\n`;
+            if (desiredOutcome) {
+                combinedQuery += `DESIRED OUTCOME:\n${desiredOutcome}\n\n`;
+            }
+
+            const formData = {
+                query: combinedQuery,
+                jurisdiction: jurisdiction,
+                practiceArea: practiceArea,
+                userId: 'web_user_' + Date.now()
+            };
+
+            // Store metadata for PDF
+            currentMetadata = {
+                query: legalIssue, // Use just the issue for PDF title
+                jurisdiction: jurisdiction,
+                practiceArea: practiceArea,
+                date: new Date().toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                })
+            };
+
+            try {
+                // Call n8n webhook
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Store memo for PDF
+                currentMemo = data.memo || data.content || data.memorandum || '';
+
+                // Display results
+                loading.classList.remove('active');
+                results.classList.add('active');
+
+                // Format and display the memo content
+                if (currentMemo) {
+                    resultsContent.innerHTML = formatMemo(currentMemo);
+                } else {
+                    resultsContent.innerHTML = '<p>Research completed, but no formatted results available.</p>';
+                }
+
+                // Show PDF download button
+                pdfLink.style.display = 'inline-flex';
+
+                // Add document link if available
+                if (data.documentUrl) {
+                    docLink.href = data.documentUrl;
+                    docLink.style.display = 'inline-flex';
+                }
+
+            } catch (err) {
+                console.error('Error:', err);
+                loading.classList.remove('active');
+                error.classList.add('active');
+                errorMessage.textContent = `Failed to complete research: ${err.message}. Please check your connection and try again.`;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🔍 Research Legal Issue';
+            }
+        });
+
+        // Format memo text for display
+        function formatMemo(text) {
+            // Convert newlines to paragraphs
+            let formatted = text
+                .split('\n\n')
+                .map(para => {
+                    para = para.trim();
+                    if (!para) return '';
+                    
+                    // Check if it's a heading (ALL CAPS or starts with ##)
+                    if (para === para.toUpperCase() && para.length < 100) {
+                        return `<h4>${escapeHtml(para)}</h4>`;
+                    }
+                    
+                    return `<p>${escapeHtml(para).replace(/\n/g, '<br>')}</p>`;
+                })
+                .join('');
+
+            return formatted || '<p>No content available</p>';
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Generate PDF from memorandum
+        function generatePDF(memoText, metadata) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'letter'
+            });
+
+            // Page settings
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const margin = 25;
+            const maxWidth = pageWidth - (margin * 2);
+            let yPosition = margin;
+
+            // Helper function to add text with word wrap
+            function addText(text, fontSize, isBold = false, isHeader = false) {
+                doc.setFontSize(fontSize);
+                doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+                
+                const lines = doc.splitTextToSize(text, maxWidth);
+                
+                lines.forEach((line, index) => {
+                    // Check if we need a new page
+                    if (yPosition + 10 > pageHeight - margin) {
+                        doc.addPage();
+                        yPosition = margin;
+                    }
+                    
+                    doc.text(line, margin, yPosition);
+                    yPosition += fontSize * 0.5;
+                });
+                
+                // Add extra space after headers
+                if (isHeader) {
+                    yPosition += 3;
+                }
+            }
+
+            // Add header
+            doc.setFontSize(20);
+            doc.setFont('helvetica', 'bold');
+            doc.text('LEGAL RESEARCH MEMORANDUM', pageWidth / 2, yPosition, { align: 'center' });
+            yPosition += 15;
+
+            // Add line separator
+            doc.setLineWidth(0.5);
+            doc.line(margin, yPosition, pageWidth - margin, yPosition);
+            yPosition += 10;
+
+            // Add metadata
+            addText(`Date: ${metadata.date}`, 11);
+            yPosition += 2;
+            addText(`Jurisdiction: ${metadata.jurisdiction}`, 11);
+            yPosition += 2;
+            addText(`Practice Area: ${metadata.practiceArea}`, 11);
+            yPosition += 10;
+
+            // Process memo content
+            const sections = memoText.split('\n\n');
+            
+            sections.forEach(section => {
+                section = section.trim();
+                if (!section) return;
+
+                // Check if it's a header (all caps or starts with I., II., etc.)
+                const isHeader = (section === section.toUpperCase() && section.length < 100) ||
+                                /^[IVX]+\.|^[A-Z]\./. test(section);
+
+                if (isHeader) {
+                    yPosition += 5;
+                    addText(section, 12, true, true);
+                } else {
+                    addText(section, 11, false, false);
+                    yPosition += 5;
+                }
+            });
+
+            // Add footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                doc.text(
+                    `Page ${i} of ${pageCount}`,
+                    pageWidth / 2,
+                    pageHeight - 15,
+                    { align: 'center' }
+                );
+            }
+
+            // Generate filename
+            const dateStr = new Date().toISOString().split('T')[0];
+            const practiceAreaStr = metadata.practiceArea.replace(/\s+/g, '_');
+            const filename = `Legal_Memo_${practiceAreaStr}_${dateStr}.pdf`;
+
+            // Save the PDF
+            doc.save(filename);
+        }
+    </script>
+</body>
+</html>
