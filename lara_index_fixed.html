@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Agentic Research Assistant (LARA)</title>
+    
+    <!-- jsPDF Library for PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        /* LARA letters styling - darker purple */
+        .header h1 .lara-letter {
+            color: #1a1040;
+            font-weight: 800;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            align-items: start;
+        }
+
+        @media (max-width: 968px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #1a202c;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 0.95rem;
+        }
+
+        .form-group textarea,
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .form-group textarea:focus,
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        #relevantFacts {
+            min-height: 180px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 640px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-top: 10px;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .results-container {
+            min-height: 400px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading p {
+            color: #4a5568;
+            font-size: 1rem;
+        }
+
+        /* Progress bar for polling */
+        .progress-container {
+            margin-top: 20px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 10px;
+            width: 0%;
+            transition: width 0.5s ease;
+            animation: progress-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes progress-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .status-text {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            color: #718096;
+        }
+
+        .poll-count {
+            font-size: 0.8rem;
+            color: #a0aec0;
+            margin-top: 5px;
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .results-header h3 {
+            color: #1a202c;
+            font-size: 1.2rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .doc-link, .pdf-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: background 0.2s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .doc-link {
+            background: #48bb78;
+        }
+
+        .doc-link:hover {
+            background: #38a169;
+        }
+
+        .pdf-link {
+            background: #e53e3e;
+        }
+
+        .pdf-link:hover {
+            background: #c53030;
+        }
+
+        .results-content {
+            line-height: 1.8;
+            color: #2d3748;
+        }
+
+        .results-content h4 {
+            color: #1a202c;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            font-size: 1.1rem;
+        }
+
+        .results-content p {
+            margin-bottom: 16px;
+        }
+
+        .results-content strong {
+            color: #1a202c;
+        }
+
+        /* Opposing Counsel Section Styling */
+        .results-content .opposing-counsel-section {
+            background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+            border-left: 4px solid #ea580c;
+            padding: 20px;
+            margin: 24px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .results-content .opposing-counsel-section h4 {
+            color: #9a3412;
+        }
+
+        .empty-state {
+            display: block;
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .empty-state p {
+            font-size: 1.1rem;
+        }
+
+        .error {
+            display: none;
+            padding: 16px;
+            background: #fed7d7;
+            border: 2px solid #fc8181;
+            border-radius: 8px;
+            color: #742a2a;
+            margin-bottom: 20px;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        .error strong {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .examples {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .examples h3 {
+            font-size: 1rem;
+            margin-bottom: 12px;
+            color: #2d3748;
+        }
+
+        .example-query {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+            color: #4a5568;
+        }
+
+        .example-query:hover {
+            background: #edf2f7;
+            transform: translateX(4px);
+        }
+
+        /* Quality score badge */
+        .quality-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .quality-high {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .quality-medium {
+            background: #fefcbf;
+            color: #744210;
+        }
+
+        .quality-low {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        /* Toggle option styling - orange theme for opposing counsel */
+        .toggle-option {
+            margin-top: 20px;
+            padding: 16px;
+            background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+            border-radius: 8px;
+            border-left: 4px solid #ea580c;
+        }
+
+        .toggle-option label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            margin-bottom: 0;
+        }
+
+        .toggle-option input[type="checkbox"] {
+            width: auto;
+            margin-right: 12px;
+            cursor: pointer;
+            accent-color: #ea580c;
+        }
+
+        .toggle-option .toggle-title {
+            font-weight: 600;
+            color: #9a3412;
+        }
+
+        .toggle-option .toggle-description {
+            font-size: 0.85rem;
+            color: #c2410c;
+            margin-top: 8px;
+            margin-left: 28px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚖️ <span class="lara-letter">L</span>egal <span class="lara-letter">A</span>gentic <span class="lara-letter">R</span>esearch <span class="lara-letter">A</span>ssistant</h1>
+            <p>AI-Powered Comprehensive Legal Research</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Query Form -->
+            <div class="card">
+                <h2>Submit Legal Research Query</h2>
+                
+                <form id="researchForm">
+                    <div class="form-group">
+                        <label for="legalIssue">Legal Issue/Question *</label>
+                        <textarea 
+                            id="legalIssue" 
+                            name="legalIssue" 
+                            required
+                            placeholder="What is the specific legal question? (e.g., 'Does my client have grounds to terminate the contract for material breach?')"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="relevantFacts">Relevant Facts *</label>
+                        <textarea 
+                            id="relevantFacts" 
+                            name="relevantFacts" 
+                            required
+                            placeholder="Describe the key facts in chronological order. Include:
+- Parties involved and their roles
+- Important dates and timeline
+- Specific actions taken or statements made
+- Any relevant documentation or evidence
+- Financial amounts or damages (if applicable)"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="desiredOutcome">Desired Outcome</label>
+                        <textarea 
+                            id="desiredOutcome" 
+                            name="desiredOutcome"
+                            placeholder="What does the client want to achieve? (e.g., 'Terminate contract and recover damages', 'Suppress evidence', 'Seek injunction')"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="jurisdiction">Jurisdiction *</label>
+                            <select id="jurisdiction" name="jurisdiction" required>
+                                <option value="">Select jurisdiction...</option>
+                                <option value="federal">Federal</option>
+                                <option value="Alabama">Alabama</option>
+                                <option value="Alaska">Alaska</option>
+                                <option value="Arizona">Arizona</option>
+                                <option value="Arkansas">Arkansas</option>
+                                <option value="California">California</option>
+                                <option value="Colorado">Colorado</option>
+                                <option value="Connecticut">Connecticut</option>
+                                <option value="Delaware">Delaware</option>
+                                <option value="Florida">Florida</option>
+                                <option value="Georgia">Georgia</option>
+                                <option value="Hawaii">Hawaii</option>
+                                <option value="Idaho">Idaho</option>
+                                <option value="Illinois">Illinois</option>
+                                <option value="Indiana">Indiana</option>
+                                <option value="Iowa">Iowa</option>
+                                <option value="Kansas">Kansas</option>
+                                <option value="Kentucky">Kentucky</option>
+                                <option value="Louisiana">Louisiana</option>
+                                <option value="Maine">Maine</option>
+                                <option value="Maryland">Maryland</option>
+                                <option value="Massachusetts">Massachusetts</option>
+                                <option value="Michigan">Michigan</option>
+                                <option value="Minnesota">Minnesota</option>
+                                <option value="Mississippi">Mississippi</option>
+                                <option value="Missouri">Missouri</option>
+                                <option value="Montana">Montana</option>
+                                <option value="Nebraska">Nebraska</option>
+                                <option value="Nevada">Nevada</option>
+                                <option value="New Hampshire">New Hampshire</option>
+                                <option value="New Jersey">New Jersey</option>
+                                <option value="New Mexico">New Mexico</option>
+                                <option value="New York">New York</option>
+                                <option value="North Carolina">North Carolina</option>
+                                <option value="North Dakota">North Dakota</option>
+                                <option value="Ohio">Ohio</option>
+                                <option value="Oklahoma">Oklahoma</option>
+                                <option value="Oregon">Oregon</option>
+                                <option value="Pennsylvania">Pennsylvania</option>
+                                <option value="Rhode Island">Rhode Island</option>
+                                <option value="South Carolina">South Carolina</option>
+                                <option value="South Dakota">South Dakota</option>
+                                <option value="Tennessee">Tennessee</option>
+                                <option value="Texas">Texas</option>
+                                <option value="Utah">Utah</option>
+                                <option value="Vermont">Vermont</option>
+                                <option value="Virginia">Virginia</option>
+                                <option value="Washington">Washington</option>
+                                <option value="West Virginia">West Virginia</option>
+                                <option value="Wisconsin">Wisconsin</option>
+                                <option value="Wyoming">Wyoming</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="practiceArea">Practice Area *</label>
+                            <select id="practiceArea" name="practiceArea" required>
+                                <option value="">Select practice area...</option>
+                                <option value="general">General</option>
+                                <option value="bankruptcy">Bankruptcy</option>
+                                <option value="civil rights">Civil Rights</option>
+                                <option value="contract law">Contract Law</option>
+                                <option value="corporate law">Corporate Law</option>
+                                <option value="criminal law">Criminal Law</option>
+                                <option value="employment law">Employment Law</option>
+                                <option value="environmental law">Environmental Law</option>
+                                <option value="estate planning">Estate Planning</option>
+                                <option value="family law">Family Law</option>
+                                <option value="immigration">Immigration</option>
+                                <option value="intellectual property">Intellectual Property</option>
+                                <option value="personal injury">Personal Injury/Tort Law</option>
+                                <option value="real estate">Real Estate</option>
+                                <option value="tax law">Tax Law</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Opposing Counsel Display Toggle -->
+                    <div class="form-group toggle-option">
+                        <label>
+                            <input type="checkbox" id="showOpposingCounsel" name="showOpposingCounsel" checked>
+                            <span class="toggle-title">
+                                🎯 Show Opposing Counsel Analysis
+                            </span>
+                        </label>
+                        <p class="toggle-description">
+                            Display strategic "devil's advocate" analysis that anticipates opposing arguments, identifies weaknesses, and assesses settlement leverage. <strong>Uncheck to hide this section in results.</strong>
+                        </p>
+                    </div>
+
+                    <button type="submit" class="btn" id="submitBtn">
+                        🔍 Research Legal Issue
+                    </button>
+                </form>
+
+                <div class="examples">
+                    <h3>📋 Example Queries (Click to use)</h3>
+                    <div class="example-query" 
+                         data-issue="Can my client terminate a software development contract for material breach?" 
+                         data-facts="Our company (TechCorp) contracted with VendorSoft on March 1, 2025 for custom CRM software. Contract specified delivery within 90 days (by June 1). VendorSoft missed the deadline. After repeated requests and deadline extensions, they still have not delivered core features. It is now January 2026 - 10 months late. Contract requires written notice of breach with 30-day cure period." 
+                         data-outcome="Terminate the contract immediately and recover $150,000 in damages for costs incurred and lost business opportunities."
+                         data-jurisdiction="California" 
+                         data-practice="contract law">
+                        Contract breach - software delivery failure
+                    </div>
+                    <div class="example-query" 
+                         data-issue="Do we have grounds for an age discrimination claim under federal law?" 
+                         data-facts="My client (John Smith, age 58) worked as a Marketing Manager at XYZ Corp for 15 years with consistently positive reviews. In November 2025, he was terminated and replaced by a 32-year-old employee. HR cited 'cultural fit' and 'need for fresh perspectives' but provided no documented performance issues. Three other employees over 50 were also terminated in the same quarter." 
+                         data-outcome="File an EEOC complaint and pursue damages for wrongful termination based on age discrimination."
+                         data-jurisdiction="federal" 
+                         data-practice="employment law">
+                        Age discrimination in employment
+                    </div>
+                    <div class="example-query" 
+                         data-issue="Can we suppress evidence obtained during a warrantless search of my client's apartment?" 
+                         data-facts="On December 15, 2025, police received a call from a neighbor reporting 'suspicious activity' at my client's apartment. Officers arrived at 10pm and knocked. When my client answered, officers claimed they smelled marijuana and entered without a warrant, citing exigent circumstances. They searched the apartment and found contraband. No warrant was ever obtained. Client did not consent to the search." 
+                         data-outcome="Suppress all evidence obtained during the warrantless search under the Fourth Amendment exclusionary rule."
+                         data-jurisdiction="New York" 
+                         data-practice="criminal law">
+                        Fourth Amendment - warrantless search
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Display -->
+            <div class="card results-container">
+                <div class="empty-state" id="emptyState">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p>Submit a query to see research results</p>
+                </div>
+
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p id="loadingTitle">Conducting comprehensive legal research...</p>
+                    <p id="loadingSubtitle" style="font-size: 0.9rem; margin-top: 10px; color: #718096;">This typically takes 2-3 minutes</p>
+                    
+                    <!-- Progress indicator -->
+                    <div class="progress-container">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                    <p class="status-text" id="statusText">Initializing research...</p>
+                    <p class="poll-count" id="pollCount"></p>
+                </div>
+
+                <div class="error" id="error">
+                    <strong>⚠️ Error</strong>
+                    <p id="errorMessage"></p>
+                </div>
+
+                <div class="results" id="results">
+                    <div class="results-header">
+                        <h3>Research Results <span id="qualityBadge" class="quality-badge"></span></h3>
+                        <div class="action-buttons">
+                            <button id="pdfLink" class="pdf-link" style="display: none;">
+                                📥 Download PDF
+                            </button>
+                            <a href="#" id="docLink" class="doc-link" target="_blank" style="display: none;">
+                                📄 View Google Doc
+                            </a>
+                        </div>
+                    </div>
+                    <div class="results-content" id="resultsContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // CONFIGURATION - Single Enhanced Endpoint
+        // ============================================
+        const WEBHOOK_URL = 'https://sbray205.app.n8n.cloud/webhook/lara';
+        const STATUS_CHECK_URL = 'https://sbray205.app.n8n.cloud/webhook/e0e116e6-83e2-4337-a3d2-7af93d15aba3/check-status';
+        
+        // Polling configuration
+        const POLL_INTERVAL = 5000;  // 5 seconds
+        const MAX_POLL_TIME = 300000; // 5 minutes max
+        const PROGRESS_STAGES = [
+            { time: 0, text: 'Initializing research...', progress: 5 },
+            { time: 10000, text: 'Analyzing legal issues...', progress: 15 },
+            { time: 25000, text: 'Searching case law databases...', progress: 30 },
+            { time: 45000, text: 'Analyzing relevant cases...', progress: 45 },
+            { time: 70000, text: 'Synthesizing legal findings...', progress: 55 },
+            { time: 90000, text: 'Analyzing opposing counsel perspective...', progress: 70 },
+            { time: 110000, text: 'Quality assurance review...', progress: 80 },
+            { time: 130000, text: 'Drafting memorandum...', progress: 90 },
+            { time: 160000, text: 'Finalizing results...', progress: 95 }
+        ];
+
+        // ============================================
+        // DOM Elements
+        // ============================================
+        const form = document.getElementById('researchForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const emptyState = document.getElementById('emptyState');
+        const loading = document.getElementById('loading');
+        const loadingTitle = document.getElementById('loadingTitle');
+        const loadingSubtitle = document.getElementById('loadingSubtitle');
+        const progressBar = document.getElementById('progressBar');
+        const statusText = document.getElementById('statusText');
+        const pollCount = document.getElementById('pollCount');
+        const error = document.getElementById('error');
+        const errorMessage = document.getElementById('errorMessage');
+        const results = document.getElementById('results');
+        const resultsContent = document.getElementById('resultsContent');
+        const docLink = document.getElementById('docLink');
+        const pdfLink = document.getElementById('pdfLink');
+        const qualityBadge = document.getElementById('qualityBadge');
+
+        // State variables
+        let currentMemo = '';
+        let currentMemoFiltered = '';
+        let currentMetadata = {};
+        let showOpposingCounsel = true;
+        let pollTimer = null;
+        let progressTimer = null;
+        let startTime = null;
+
+        // ============================================
+        // Example Query Handlers
+        // ============================================
+        document.querySelectorAll('.example-query').forEach(example => {
+            example.addEventListener('click', () => {
+                document.getElementById('legalIssue').value = example.dataset.issue;
+                document.getElementById('relevantFacts').value = example.dataset.facts;
+                document.getElementById('desiredOutcome').value = example.dataset.outcome;
+                document.getElementById('jurisdiction').value = example.dataset.jurisdiction;
+                document.getElementById('practiceArea').value = example.dataset.practice;
+            });
+        });
+
+        // ============================================
+        // PDF Download Handler
+        // ============================================
+        pdfLink.addEventListener('click', () => {
+            // Use filtered or full memo based on toggle state
+            const memoToExport = showOpposingCounsel ? currentMemo : currentMemoFiltered;
+            generatePDF(memoToExport, currentMetadata);
+        });
+
+        // ============================================
+        // Progress Update Function
+        // ============================================
+        function updateProgress() {
+            if (!startTime) return;
+            
+            const elapsed = Date.now() - startTime;
+            
+            // Find appropriate stage
+            let currentStage = PROGRESS_STAGES[0];
+            for (const stage of PROGRESS_STAGES) {
+                if (elapsed >= stage.time) {
+                    currentStage = stage;
+                }
+            }
+            
+            statusText.textContent = currentStage.text;
+            progressBar.style.width = currentStage.progress + '%';
+        }
+
+        // ============================================
+        // Filter Opposing Counsel Content
+        // ============================================
+        // FIXED: Updated regex patterns to handle markdown headers (## V., ## VI., etc.)
+        // and prevent consuming the CASES CITED section
+        function filterOpposingCounsel(memoText) {
+            if (!memoText) return memoText;
+            
+            // Patterns to match Section V (Opposing Counsel Analysis) and its content
+            // FIXED: Added (?:#+ *)? to handle markdown headers like "## VI."
+            // FIXED: Added CASES\s*CITED to all lookaheads to prevent over-matching
+            const patterns = [
+                // Pattern 1: "V. OPPOSING COUNSEL ANALYSIS" through next section header
+                /(?:#+ *)?V\.\s*OPPOSING\s*COUNSEL\s*ANALYSIS[\s\S]*?(?=(?:#+ *)?(?:VI\.\s*|VII\.\s*)|CONCLUSION|CASES\s*CITED|$)/gi,
+                
+                // Pattern 2: Just "OPPOSING COUNSEL ANALYSIS" header through next major section
+                /(?:#+ *)?OPPOSING\s*COUNSEL\s*ANALYSIS[\s\S]*?(?=(?:#+ *)?(?:VI\.|VII\.)|CONCLUSION|CASES\s*CITED|$)/gi,
+                
+                // Pattern 3: Section with "Anticipated Arguments" subheader
+                /(?:#+ *)?(?:V\.\s*)?OPPOSING\s*COUNSEL[\s\S]*?(?:Anticipated\s*Arguments|Weaknesses\s*in\s*Our|Counter-Evidence|Settlement\s*Leverage)[\s\S]*?(?=(?:#+ *)?(?:VI\.\s*|VII\.\s*)|CONCLUSION|CASES\s*CITED|$)/gi
+            ];
+            
+            let filteredText = memoText;
+            
+            for (const pattern of patterns) {
+                filteredText = filteredText.replace(pattern, '');
+            }
+            
+            // Clean up any resulting double line breaks
+            filteredText = filteredText.replace(/\n{4,}/g, '\n\n\n');
+            
+            // Renumber sections if V was removed (VI becomes V, VII becomes VI, etc.)
+            // FIXED: Handle markdown headers too - preserve the ## prefix
+            filteredText = filteredText.replace(/(#+ *)?VI\.\s*/g, '$1V. ');
+            filteredText = filteredText.replace(/(#+ *)?VII\.\s*/g, '$1VI. ');
+            filteredText = filteredText.replace(/(#+ *)?VIII\.\s*/g, '$1VII. ');
+            
+            return filteredText.trim();
+        }
+
+        // ============================================
+        // Polling Function
+        // ============================================
+        async function pollForResults(sessionId, pollNumber = 1) {
+            try {
+                pollCount.textContent = `Check #${pollNumber} - Session: ${sessionId.substring(0, 20)}...`;
+                
+                const response = await fetch(`${STATUS_CHECK_URL}/${sessionId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Status check failed: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('Poll response:', data);
+
+                if (data.status === 'completed') {
+                    // SUCCESS! Display results
+                    clearInterval(pollTimer);
+                    clearInterval(progressTimer);
+                    
+                    // Store both full and filtered versions
+                    currentMemo = data.memo || data.content || data.memorandum || '';
+                    currentMemoFiltered = filterOpposingCounsel(currentMemo);
+                    
+                    loading.classList.remove('active');
+                    results.classList.add('active');
+
+                    // Display quality badge
+                    if (data.qualityScore) {
+                        qualityBadge.textContent = `Quality: ${data.qualityScore}%`;
+                        if (data.qualityScore >= 85) {
+                            qualityBadge.className = 'quality-badge quality-high';
+                        } else if (data.qualityScore >= 70) {
+                            qualityBadge.className = 'quality-badge quality-medium';
+                        } else {
+                            qualityBadge.className = 'quality-badge quality-low';
+                        }
+                        qualityBadge.style.display = 'inline-block';
+                    }
+
+                    // Format and display memo based on toggle state
+                    const memoToDisplay = showOpposingCounsel ? currentMemo : currentMemoFiltered;
+                    if (memoToDisplay) {
+                        resultsContent.innerHTML = formatMemo(memoToDisplay, showOpposingCounsel);
+                    } else {
+                        resultsContent.innerHTML = '<p>Research completed, but no formatted results available.</p>';
+                    }
+
+                    // Show PDF button
+                    pdfLink.style.display = 'inline-flex';
+
+                    // Show doc link if available
+                    if (data.documentUrl) {
+                        docLink.href = data.documentUrl;
+                        docLink.style.display = 'inline-flex';
+                    }
+
+                    // Re-enable form
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '🔍 Research Legal Issue';
+
+                } else if (data.status === 'processing') {
+                    // Still processing - continue polling
+                    const elapsed = Date.now() - startTime;
+                    
+                    if (elapsed > MAX_POLL_TIME) {
+                        throw new Error('Research is taking longer than expected. Please try again later.');
+                    }
+                    
+                    // Schedule next poll
+                    pollTimer = setTimeout(() => pollForResults(sessionId, pollNumber + 1), POLL_INTERVAL);
+                    
+                } else if (data.status === 'not_found') {
+                    // Session not found yet - might be database lag
+                    if (pollNumber < 3) {
+                        // Give it a few more tries
+                        pollTimer = setTimeout(() => pollForResults(sessionId, pollNumber + 1), POLL_INTERVAL);
+                    } else {
+                        throw new Error('Research session not found. Please try again.');
+                    }
+                } else {
+                    throw new Error(`Unexpected status: ${data.status}`);
+                }
+
+            } catch (err) {
+                console.error('Polling error:', err);
+                clearInterval(pollTimer);
+                clearInterval(progressTimer);
+                
+                loading.classList.remove('active');
+                error.classList.add('active');
+                errorMessage.textContent = err.message;
+                
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🔍 Research Legal Issue';
+            }
+        }
+
+        // ============================================
+        // Form Submission
+        // ============================================
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Capture display preference (not sent to webhook)
+            showOpposingCounsel = document.getElementById('showOpposingCounsel').checked;
+
+            // Reset and show loading state
+            emptyState.style.display = 'none';
+            error.classList.remove('active');
+            results.classList.remove('active');
+            loading.classList.add('active');
+            submitBtn.disabled = true;
+            qualityBadge.style.display = 'none';
+            
+            // Reset progress
+            progressBar.style.width = '5%';
+            startTime = Date.now();
+            
+            // Update loading text
+            submitBtn.textContent = '⏳ Researching...';
+            loadingTitle.textContent = 'Conducting comprehensive legal research...';
+
+            // Start progress animation
+            progressTimer = setInterval(updateProgress, 1000);
+
+            // Build form data
+            const legalIssue = document.getElementById('legalIssue').value;
+            const relevantFacts = document.getElementById('relevantFacts').value;
+            const desiredOutcome = document.getElementById('desiredOutcome').value;
+            const jurisdiction = document.getElementById('jurisdiction').value;
+            const practiceArea = document.getElementById('practiceArea').value;
+
+            let combinedQuery = `LEGAL ISSUE:\n${legalIssue}\n\n`;
+            combinedQuery += `RELEVANT FACTS:\n${relevantFacts}\n\n`;
+            if (desiredOutcome) {
+                combinedQuery += `DESIRED OUTCOME:\n${desiredOutcome}\n\n`;
+            }
+
+            const formData = {
+                query: combinedQuery,
+                jurisdiction: jurisdiction,
+                practiceArea: practiceArea,
+                userId: 'web_user_' + Date.now()
+            };
+
+            // Store metadata for PDF
+            currentMetadata = {
+                query: legalIssue,
+                jurisdiction: jurisdiction,
+                practiceArea: practiceArea,
+                date: new Date().toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                })
+            };
+
+            try {
+                // Submit to Enhanced workflow
+                statusText.textContent = 'Submitting research request...';
+                
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('Initial response:', data);
+
+                // Check if we got a sessionId for polling
+                if (data.sessionId) {
+                    statusText.textContent = 'Research started! Checking for results...';
+                    
+                    // Start polling after a short delay
+                    setTimeout(() => pollForResults(data.sessionId, 1), 3000);
+                    
+                } else if (data.memo || data.content || data.memorandum) {
+                    // Got immediate results (workflow completed fast or returned directly)
+                    clearInterval(progressTimer);
+                    
+                    currentMemo = data.memo || data.content || data.memorandum || '';
+                    currentMemoFiltered = filterOpposingCounsel(currentMemo);
+                    
+                    loading.classList.remove('active');
+                    results.classList.add('active');
+
+                    const memoToDisplay = showOpposingCounsel ? currentMemo : currentMemoFiltered;
+                    if (memoToDisplay) {
+                        resultsContent.innerHTML = formatMemo(memoToDisplay, showOpposingCounsel);
+                    } else {
+                        resultsContent.innerHTML = '<p>Research completed, but no formatted results available.</p>';
+                    }
+
+                    pdfLink.style.display = 'inline-flex';
+
+                    if (data.documentUrl) {
+                        docLink.href = data.documentUrl;
+                        docLink.style.display = 'inline-flex';
+                    }
+
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '🔍 Research Legal Issue';
+                    
+                } else {
+                    throw new Error('No sessionId or results returned from workflow');
+                }
+
+            } catch (err) {
+                console.error('Error:', err);
+                clearInterval(progressTimer);
+                
+                loading.classList.remove('active');
+                error.classList.add('active');
+                errorMessage.textContent = `Failed to start research: ${err.message}. Please check your connection and try again.`;
+                
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🔍 Research Legal Issue';
+            }
+        });
+
+        // ============================================
+        // Utility Functions
+        // ============================================
+        function formatMemo(text, includeOpposingCounsel = true) {
+            let formatted = text
+                .split('\n\n')
+                .map(para => {
+                    para = para.trim();
+                    if (!para) return '';
+                    
+                    // Check if this is an opposing counsel section header
+                    const isOpposingHeader = /OPPOSING\s*COUNSEL/i.test(para) || 
+                                            /V\.\s*OPPOSING/i.test(para);
+                    
+                    if (para === para.toUpperCase() && para.length < 100) {
+                        if (isOpposingHeader && includeOpposingCounsel) {
+                            return `<div class="opposing-counsel-section"><h4>${escapeHtml(para)}</h4>`;
+                        }
+                        return `<h4>${escapeHtml(para)}</h4>`;
+                    }
+                    
+                    return `<p>${escapeHtml(para).replace(/\n/g, '<br>')}</p>`;
+                })
+                .join('');
+
+            // Close any opened opposing counsel sections before the next major section
+            formatted = formatted.replace(
+                /(<div class="opposing-counsel-section">[\s\S]*?)(<h4>(?:VI\.|VII\.|CONCLUSION|CASES))/gi,
+                '$1</div>$2'
+            );
+
+            return formatted || '<p>No content available</p>';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ============================================
+        // PDF Generation
+        // ============================================
+        function generatePDF(memoText, metadata) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'letter'
+            });
+
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const margin = 25;
+            const maxWidth = pageWidth - (margin * 2);
+            let yPosition = margin;
+
+            function addText(text, fontSize, isBold = false, isHeader = false) {
+                doc.setFontSize(fontSize);
+                doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+                
+                const lines = doc.splitTextToSize(text, maxWidth);
+                
+                lines.forEach((line, index) => {
+                    if (yPosition + 10 > pageHeight - margin) {
+                        doc.addPage();
+                        yPosition = margin;
+                    }
+                    
+                    doc.text(line, margin, yPosition);
+                    yPosition += fontSize * 0.5;
+                });
+                
+                if (isHeader) {
+                    yPosition += 3;
+                }
+            }
+
+            // Header - Updated branding
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text('LEGAL AGENTIC RESEARCH ASSISTANT', pageWidth / 2, yPosition, { align: 'center' });
+            yPosition += 8;
+            
+            doc.setFontSize(14);
+            doc.text('LEGAL RESEARCH MEMORANDUM', pageWidth / 2, yPosition, { align: 'center' });
+            yPosition += 12;
+
+            // Line separator
+            doc.setLineWidth(0.5);
+            doc.line(margin, yPosition, pageWidth - margin, yPosition);
+            yPosition += 10;
+
+            // Metadata
+            addText(`Date: ${metadata.date}`, 11);
+            yPosition += 2;
+            addText(`Jurisdiction: ${metadata.jurisdiction}`, 11);
+            yPosition += 2;
+            addText(`Practice Area: ${metadata.practiceArea}`, 11);
+            yPosition += 10;
+
+            // Content
+            const sections = memoText.split('\n\n');
+            
+            sections.forEach(section => {
+                section = section.trim();
+                if (!section) return;
+
+                const isHeader = (section === section.toUpperCase() && section.length < 100) ||
+                                /^[IVX]+\.|^[A-Z]\./.test(section);
+
+                if (isHeader) {
+                    yPosition += 5;
+                    addText(section, 12, true, true);
+                } else {
+                    addText(section, 11, false, false);
+                    yPosition += 5;
+                }
+            });
+
+            // Footer with page numbers
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                doc.text(
+                    `Page ${i} of ${pageCount} | Generated by LARA`,
+                    pageWidth / 2,
+                    pageHeight - 15,
+                    { align: 'center' }
+                );
+            }
+
+            // Save
+            const dateStr = new Date().toISOString().split('T')[0];
+            const practiceAreaStr = metadata.practiceArea.replace(/\s+/g, '_');
+            const filename = `LARA_Legal_Memo_${practiceAreaStr}_${dateStr}.pdf`;
+            doc.save(filename);
+        }
+    </script>
+</body>
+</html>
