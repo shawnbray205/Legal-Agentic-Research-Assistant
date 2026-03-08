@@ -68,12 +68,12 @@ The framework implements a **Plan-Execute-Validate** loop driven by declarative 
 | `CognitiveBlueprint` (Pydantic model) | **Load Cognitive Blueprint** (Code) | Loads and validates blueprint configuration |
 | `ToolRegistry` + `ToolSpec` | **Tool Registry** (Code) | Registers tools and builds descriptions |
 | `Planner._build_planner_prompt()` | **Build Planner Prompt** (Code) | Constructs LLM prompt from blueprint |
-| `Planner.plan()` | **Planner LLM Call** (OpenAI) | Generates structured execution plan |
+| `Planner.plan()` | **Planner LLM Call** (Anthropic, Claude Sonnet 4.6) | Generates structured execution plan |
 | `Plan` + `PlanStep` dataclasses | **Parse Plan** (Code) | Parses LLM JSON into plan steps |
 | `Executor.execute_plan()` | **Execute Step** (Code) | Routes steps to tools or reasoning |
 | `ToolRegistry.call()` | **Execute Step** (Code, switch block) | Executes tool functions inline |
-| Executor reasoning branch | **Reasoning LLM Call** (OpenAI) | LLM-based reasoning for non-tool steps |
-| `Executor._synthesize()` | **Synthesis LLM Call** (OpenAI) | Combines step results into final answer |
+| Executor reasoning branch | **Reasoning LLM Call** (Anthropic, Claude Haiku 4.5) | LLM-based reasoning for non-tool steps |
+| `Executor._synthesize()` | **Synthesis LLM Call** (Anthropic, Claude Sonnet 4.6) | Combines step results into final answer |
 | `Validator.validate()` | **Validation Engine** (Code) | Checks answer against blueprint rules |
 | `MemoryManager` | **Validation Engine** (Code, memory section) | Tracks conversation history |
 | `RuntimeAgent.run()` | Entire workflow orchestration | Plan → Execute → Validate loop |
@@ -144,8 +144,18 @@ validation:         # BlueprintValidation - output validation rules
 
 1. Open n8n and go to **Workflows** → **Import from File**
 2. Select `cognitive-blueprint-agent.workflow.json`
-3. Configure your OpenAI API credentials (replace `OPENAI_CREDENTIAL_ID`)
+3. Configure your Anthropic API credentials (replace `ANTHROPIC_CREDENTIAL_ID`)
 4. Activate the workflow
+
+### LLM Model Configuration
+
+The workflow uses a tiered Anthropic Claude model strategy optimized for accuracy vs. economy:
+
+| LLM Call | Model | Rationale |
+|---|---|---|
+| **Planner** | Claude Sonnet 4.6 | Highest-leverage call — a bad plan wastes all downstream tokens. Strong structured JSON output. |
+| **Reasoning** | Claude Haiku 4.5 | Fast, cheap, handles isolated reasoning subtasks well. Fires per-step so volume savings matter most. |
+| **Synthesis** | Claude Sonnet 4.6 | User-facing final output. Worth Sonnet-tier quality for polished, accurate answers. |
 
 ### API Call
 

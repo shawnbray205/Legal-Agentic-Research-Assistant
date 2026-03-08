@@ -11,7 +11,7 @@
       "id": "webhook-trigger",
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "typeVersion": 2.1,
       "position": [220, 300],
       "webhookId": "cognitive-agent-trigger"
     },
@@ -37,13 +37,15 @@
     },
     {
       "parameters": {
-        "model": "gpt-4o-mini",
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-sonnet-4-6-20250514"
+        },
         "messages": {
           "values": [
-            {
-              "role": "system",
-              "content": "={{ $json.plannerSystemPrompt }}"
-            },
             {
               "role": "user",
               "content": "={{ $json.plannerUserPrompt }}"
@@ -51,19 +53,20 @@
           ]
         },
         "options": {
+          "system": "={{ $json.plannerSystemPrompt }}",
           "maxTokens": 1200,
           "temperature": 0.2
         }
       },
       "id": "planner-llm",
       "name": "Planner LLM Call",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
       "typeVersion": 1,
       "position": [1100, 300],
       "credentials": {
-        "openAiApi": {
-          "id": "OPENAI_CREDENTIAL_ID",
-          "name": "OpenAI API"
+        "anthropicApi": {
+          "id": "ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic API"
         }
       }
     },
@@ -79,7 +82,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// NODE: Parse Plan\n// Maps to: Plan, PlanStep dataclasses\n// Parses the LLM response into structured plan steps\n// ============================================================\n\nconst data = $input.first().json;\nlet llmResponse = '';\n\n// Handle different response shapes from the OpenAI node\nif (data.message && data.message.content) {\n  llmResponse = data.message.content;\n} else if (data.text) {\n  llmResponse = data.text;\n} else if (data.choices && data.choices[0]) {\n  llmResponse = data.choices[0].message.content;\n} else {\n  llmResponse = JSON.stringify(data);\n}\n\n// Clean up response\nllmResponse = llmResponse.replace(/```json/g, '').replace(/```/g, '').trim();\n\nlet plan;\ntry {\n  plan = JSON.parse(llmResponse);\n} catch (e) {\n  // Fallback: create a single reasoning step\n  plan = {\n    steps: [{\n      step_id: 1,\n      description: 'Analyze and respond to the task',\n      tool: null,\n      tool_args: {},\n      reasoning: 'Direct reasoning approach'\n    }]\n  };\n}\n\n// Retrieve the upstream data by reading from the workflow context\n// We pass it forward from the planner prompt node\nconst upstreamData = $('Build Planner Prompt').first().json;\n\nreturn [{\n  json: {\n    task: upstreamData.task,\n    blueprint: upstreamData.blueprint,\n    blueprintName: upstreamData.blueprintName,\n    memory: upstreamData.memory,\n    execution: upstreamData.execution,\n    toolRegistry: upstreamData.toolRegistry,\n    toolDescriptions: upstreamData.toolDescriptions,\n    allowedTools: upstreamData.allowedTools,\n    plan: {\n      task: upstreamData.task,\n      steps: plan.steps,\n      strategy: upstreamData.blueprint.planning.strategy\n    },\n    currentStepIndex: 0,\n    stepResults: []\n  }\n}];\n"
+        "jsCode": "// ============================================================\n// NODE: Parse Plan\n// Maps to: Plan, PlanStep dataclasses\n// Parses the LLM response into structured plan steps\n// ============================================================\n\nconst data = $input.first().json;\nlet llmResponse = '';\n\n// Handle Anthropic standalone node response format\n// The Anthropic node returns { content: [{ type: 'text', text: '...' }] }\n// or simplified output as { text: '...' } or { message: '...' }\nif (data.content && Array.isArray(data.content)) {\n  // Native Anthropic API response format\n  const textParts = data.content.filter(c => c.type === 'text');\n  llmResponse = textParts.map(c => c.text).join('');\n} else if (data.text) {\n  llmResponse = data.text;\n} else if (data.message) {\n  llmResponse = typeof data.message === 'string' ? data.message : JSON.stringify(data.message);\n} else {\n  llmResponse = JSON.stringify(data);\n}\n\n// Clean up response\nllmResponse = llmResponse.replace(/```json/g, '').replace(/```/g, '').trim();\n\nlet plan;\ntry {\n  plan = JSON.parse(llmResponse);\n} catch (e) {\n  // Fallback: create a single reasoning step\n  plan = {\n    steps: [{\n      step_id: 1,\n      description: 'Analyze and respond to the task',\n      tool: null,\n      tool_args: {},\n      reasoning: 'Direct reasoning approach'\n    }]\n  };\n}\n\n// Retrieve the upstream data by reading from the workflow context\n// We pass it forward from the planner prompt node\nconst upstreamData = $('Build Planner Prompt').first().json;\n\nreturn [{\n  json: {\n    task: upstreamData.task,\n    blueprint: upstreamData.blueprint,\n    blueprintName: upstreamData.blueprintName,\n    memory: upstreamData.memory,\n    execution: upstreamData.execution,\n    toolRegistry: upstreamData.toolRegistry,\n    toolDescriptions: upstreamData.toolDescriptions,\n    allowedTools: upstreamData.allowedTools,\n    plan: {\n      task: upstreamData.task,\n      steps: plan.steps,\n      strategy: upstreamData.blueprint.planning.strategy\n    },\n    currentStepIndex: 0,\n    stepResults: []\n  }\n}];\n"
       },
       "id": "parse-plan",
       "name": "Parse Plan",
@@ -123,7 +126,7 @@
       "id": "check-reasoning",
       "name": "Needs LLM Reasoning?",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
+      "typeVersion": 2.2,
       "position": [1760, 300]
     },
     {
@@ -138,13 +141,15 @@
     },
     {
       "parameters": {
-        "model": "gpt-4o-mini",
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-haiku-4-5-20251001"
+        },
         "messages": {
           "values": [
-            {
-              "role": "system",
-              "content": "={{ $json.reasoningSystemPrompt }}"
-            },
             {
               "role": "user",
               "content": "={{ $json.reasoningUserPrompt }}"
@@ -152,25 +157,26 @@
           ]
         },
         "options": {
+          "system": "={{ $json.reasoningSystemPrompt }}",
           "maxTokens": 500,
           "temperature": 0.3
         }
       },
       "id": "reasoning-llm",
       "name": "Reasoning LLM Call",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
       "typeVersion": 1,
       "position": [2200, 160],
       "credentials": {
-        "openAiApi": {
-          "id": "OPENAI_CREDENTIAL_ID",
-          "name": "OpenAI API"
+        "anthropicApi": {
+          "id": "ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic API"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// NODE: Update Reasoning Result\n// Updates the step result with LLM reasoning output\n// ============================================================\n\nconst upstreamData = $('Build Reasoning Prompt').first().json;\nconst llmData = $input.first().json;\n\nlet reasoningOutput = '';\nif (llmData.message && llmData.message.content) {\n  reasoningOutput = llmData.message.content;\n} else if (llmData.text) {\n  reasoningOutput = llmData.text;\n} else {\n  reasoningOutput = JSON.stringify(llmData);\n}\n\n// Update the last step result with the reasoning output\nconst results = [...upstreamData.stepResults];\nresults[results.length - 1] = {\n  ...results[results.length - 1],\n  output: reasoningOutput,\n  success: true\n};\n\nreturn [{\n  json: {\n    task: upstreamData.task,\n    blueprint: upstreamData.blueprint,\n    blueprintName: upstreamData.blueprintName,\n    memory: upstreamData.memory,\n    execution: upstreamData.execution,\n    toolRegistry: upstreamData.toolRegistry,\n    toolDescriptions: upstreamData.toolDescriptions,\n    allowedTools: upstreamData.allowedTools,\n    plan: upstreamData.plan,\n    currentStepIndex: upstreamData.currentStepIndex,\n    stepResults: results,\n    allStepsComplete: upstreamData.allStepsComplete\n  }\n}];\n"
+        "jsCode": "// ============================================================\n// NODE: Update Reasoning Result\n// Updates the step result with LLM reasoning output\n// ============================================================\n\nconst upstreamData = $('Build Reasoning Prompt').first().json;\nconst llmData = $input.first().json;\n\nlet reasoningOutput = '';\n\n// Handle Anthropic standalone node response format\nif (llmData.content && Array.isArray(llmData.content)) {\n  const textParts = llmData.content.filter(c => c.type === 'text');\n  reasoningOutput = textParts.map(c => c.text).join('');\n} else if (llmData.text) {\n  reasoningOutput = llmData.text;\n} else if (llmData.message) {\n  reasoningOutput = typeof llmData.message === 'string' ? llmData.message : JSON.stringify(llmData.message);\n} else {\n  reasoningOutput = JSON.stringify(llmData);\n}\n\n// Update the last step result with the reasoning output\nconst results = [...upstreamData.stepResults];\nresults[results.length - 1] = {\n  ...results[results.length - 1],\n  output: reasoningOutput,\n  success: true\n};\n\nreturn [{\n  json: {\n    task: upstreamData.task,\n    blueprint: upstreamData.blueprint,\n    blueprintName: upstreamData.blueprintName,\n    memory: upstreamData.memory,\n    execution: upstreamData.execution,\n    toolRegistry: upstreamData.toolRegistry,\n    toolDescriptions: upstreamData.toolDescriptions,\n    allowedTools: upstreamData.allowedTools,\n    plan: upstreamData.plan,\n    currentStepIndex: upstreamData.currentStepIndex,\n    stepResults: results,\n    allStepsComplete: upstreamData.allStepsComplete\n  }\n}];\n"
       },
       "id": "update-reasoning",
       "name": "Update Reasoning Result",
@@ -204,7 +210,7 @@
       "id": "check-more-steps",
       "name": "More Steps?",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
+      "typeVersion": 2.2,
       "position": [2200, 500]
     },
     {
@@ -219,13 +225,15 @@
     },
     {
       "parameters": {
-        "model": "gpt-4o-mini",
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-sonnet-4-6-20250514"
+        },
         "messages": {
           "values": [
-            {
-              "role": "system",
-              "content": "={{ $json.synthesisSystemPrompt }}"
-            },
             {
               "role": "user",
               "content": "={{ $json.synthesisUserPrompt }}"
@@ -233,25 +241,26 @@
           ]
         },
         "options": {
+          "system": "={{ $json.synthesisSystemPrompt }}",
           "maxTokens": 600,
           "temperature": 0.3
         }
       },
       "id": "synthesis-llm",
       "name": "Synthesis LLM Call",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
       "typeVersion": 1,
       "position": [2860, 300],
       "credentials": {
-        "openAiApi": {
-          "id": "OPENAI_CREDENTIAL_ID",
-          "name": "OpenAI API"
+        "anthropicApi": {
+          "id": "ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic API"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// NODE: Validation Engine\n// Maps to: Validator.validate() and ValidationResult\n// Validates the final answer against blueprint rules\n// ============================================================\n\nconst synthesisData = $('Build Synthesis Prompt').first().json;\nconst llmData = $input.first().json;\n\nlet finalAnswer = '';\nif (llmData.message && llmData.message.content) {\n  finalAnswer = llmData.message.content;\n} else if (llmData.text) {\n  finalAnswer = llmData.text;\n} else {\n  finalAnswer = JSON.stringify(llmData);\n}\n\nconst bp = synthesisData.blueprint;\nconst v = bp.validation;\nconst issues = [];\n\n// Rule 1: Minimum response length\nif (finalAnswer.length < v.min_response_length) {\n  issues.push(`Response too short: ${finalAnswer.length} chars (min: ${v.min_response_length})`);\n}\n\n// Rule 2: Forbidden phrases\nconst answerLower = finalAnswer.toLowerCase();\nfor (const phrase of (v.forbidden_phrases || [])) {\n  if (answerLower.includes(phrase.toLowerCase())) {\n    issues.push(`Forbidden phrase detected: '${phrase}'`);\n  }\n}\n\n// Rule 3: Reasoning indicators\nif (v.require_reasoning) {\n  const indicators = ['because', 'therefore', 'since', 'step', 'first',\n    'result', 'calculated', 'computed', 'found that', 'analysis', 'based on'];\n  if (!indicators.some(ind => answerLower.includes(ind))) {\n    issues.push('Response lacks visible reasoning or explanation');\n  }\n}\n\nconst validationResult = {\n  passed: issues.length === 0,\n  issues,\n  score: Math.max(0.0, 1.0 - issues.length * 0.25)\n};\n\n// Update memory\nconst memory = synthesisData.memory || { history: [], summary: '', message_count: 0 };\nmemory.history.push({\n  role: 'user',\n  content: synthesisData.task,\n  timestamp: new Date().toISOString()\n});\nmemory.history.push({\n  role: 'assistant',\n  content: finalAnswer,\n  timestamp: new Date().toISOString()\n});\nmemory.message_count = memory.history.length;\n\n// Check if memory compression needed (maps to MemoryManager._compress_memory)\nconst memoryConfig = bp.memory;\nif (memory.history.length > (memoryConfig.summarize_after || 20)) {\n  const toCompress = memory.history.slice(0, -memoryConfig.window_size);\n  memory.history = memory.history.slice(-memoryConfig.window_size);\n  const compressedText = toCompress.map(e => `${e.role}: ${(e.content || '').substring(0, 200)}`).join('\\n');\n  memory.summary += ` [Compressed ${toCompress.length} messages]`;\n}\n\nreturn [{\n  json: {\n    task: synthesisData.task,\n    blueprint: bp,\n    blueprintName: synthesisData.blueprintName,\n    plan: synthesisData.plan,\n    stepResults: synthesisData.stepResults,\n    finalAnswer,\n    validation: validationResult,\n    memory,\n    execution: {\n      ...synthesisData.execution,\n      endTime: new Date().toISOString(),\n      phases: ['planning', 'execution', 'synthesis', 'validation']\n    }\n  }\n}];\n"
+        "jsCode": "// ============================================================\n// NODE: Validation Engine\n// Maps to: Validator.validate() and ValidationResult\n// Validates the final answer against blueprint rules\n// ============================================================\n\nconst synthesisData = $('Build Synthesis Prompt').first().json;\nconst llmData = $input.first().json;\n\nlet finalAnswer = '';\n\n// Handle Anthropic standalone node response format\nif (llmData.content && Array.isArray(llmData.content)) {\n  const textParts = llmData.content.filter(c => c.type === 'text');\n  finalAnswer = textParts.map(c => c.text).join('');\n} else if (llmData.text) {\n  finalAnswer = llmData.text;\n} else if (llmData.message) {\n  finalAnswer = typeof llmData.message === 'string' ? llmData.message : JSON.stringify(llmData.message);\n} else {\n  finalAnswer = JSON.stringify(llmData);\n}\n\nconst bp = synthesisData.blueprint;\nconst v = bp.validation;\nconst issues = [];\n\n// Rule 1: Minimum response length\nif (finalAnswer.length < v.min_response_length) {\n  issues.push(`Response too short: ${finalAnswer.length} chars (min: ${v.min_response_length})`);\n}\n\n// Rule 2: Forbidden phrases\nconst answerLower = finalAnswer.toLowerCase();\nfor (const phrase of (v.forbidden_phrases || [])) {\n  if (answerLower.includes(phrase.toLowerCase())) {\n    issues.push(`Forbidden phrase detected: '${phrase}'`);\n  }\n}\n\n// Rule 3: Reasoning indicators\nif (v.require_reasoning) {\n  const indicators = ['because', 'therefore', 'since', 'step', 'first',\n    'result', 'calculated', 'computed', 'found that', 'analysis', 'based on'];\n  if (!indicators.some(ind => answerLower.includes(ind))) {\n    issues.push('Response lacks visible reasoning or explanation');\n  }\n}\n\nconst validationResult = {\n  passed: issues.length === 0,\n  issues,\n  score: Math.max(0.0, 1.0 - issues.length * 0.25)\n};\n\n// Update memory\nconst memory = synthesisData.memory || { history: [], summary: '', message_count: 0 };\nmemory.history.push({\n  role: 'user',\n  content: synthesisData.task,\n  timestamp: new Date().toISOString()\n});\nmemory.history.push({\n  role: 'assistant',\n  content: finalAnswer,\n  timestamp: new Date().toISOString()\n});\nmemory.message_count = memory.history.length;\n\n// Check if memory compression needed (maps to MemoryManager._compress_memory)\nconst memoryConfig = bp.memory;\nif (memory.history.length > (memoryConfig.summarize_after || 20)) {\n  const toCompress = memory.history.slice(0, -memoryConfig.window_size);\n  memory.history = memory.history.slice(-memoryConfig.window_size);\n  const compressedText = toCompress.map(e => `${e.role}: ${(e.content || '').substring(0, 200)}`).join('\\n');\n  memory.summary += ` [Compressed ${toCompress.length} messages]`;\n}\n\nreturn [{\n  json: {\n    task: synthesisData.task,\n    blueprint: bp,\n    blueprintName: synthesisData.blueprintName,\n    plan: synthesisData.plan,\n    stepResults: synthesisData.stepResults,\n    finalAnswer,\n    validation: validationResult,\n    memory,\n    execution: {\n      ...synthesisData.execution,\n      endTime: new Date().toISOString(),\n      phases: ['planning', 'execution', 'synthesis', 'validation']\n    }\n  }\n}];\n"
       },
       "id": "validation-engine",
       "name": "Validation Engine",
@@ -285,7 +294,7 @@
       "id": "check-validation",
       "name": "Validation Passed?",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
+      "typeVersion": 2.2,
       "position": [3300, 300]
     },
     {
@@ -307,7 +316,7 @@
       "id": "webhook-response",
       "name": "Webhook Response",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
+      "typeVersion": 1.5,
       "position": [3740, 300]
     },
     {
@@ -424,9 +433,10 @@
   "tags": [
     { "name": "agentic-ai" },
     { "name": "cognitive-blueprint" },
-    { "name": "runtime-agent" }
+    { "name": "runtime-agent" },
+    { "name": "anthropic-claude" }
   ],
   "triggerCount": 0,
   "updatedAt": "2026-03-08T00:00:00.000Z",
-  "versionId": "1"
+  "versionId": "2"
 }
