@@ -3,21 +3,18 @@
   "nodes": [
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "cognitive-agent",
-        "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-trigger",
-      "name": "Webhook Trigger",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
+      "id": "chat-trigger",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
       "position": [220, 300],
-      "webhookId": "cognitive-agent-trigger"
+      "webhookId": "cognitive-agent-chat"
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// NODE: Load Cognitive Blueprint\n// Maps to: CognitiveBlueprint, BlueprintIdentity, BlueprintMemory,\n//          BlueprintPlanning, BlueprintValidation from the framework\n// ============================================================\n\nconst yaml = require('js-yaml');\n\n// Blueprint can come from webhook body or use defaults\nconst input = $input.first().json;\nconst task = input.task || 'Analyze the provided data';\nconst blueprintName = input.blueprint || 'research';\n\n// Cognitive Blueprint definitions (equivalent to YAML configs)\nconst BLUEPRINTS = {\n  research: {\n    identity: {\n      name: 'ResearchBot',\n      version: '1.2.0',\n      description: 'Answers research questions using calculation and reasoning',\n      author: 'Cognitive Blueprint Framework'\n    },\n    goals: [\n      'Answer user questions accurately using available tools',\n      'Show step-by-step reasoning for all answers',\n      'Cite the method used for each calculation'\n    ],\n    constraints: [\n      'Never fabricate numbers or statistics',\n      'Always validate mathematical results before reporting',\n      'Do not answer questions outside your tool capabilities'\n    ],\n    tools: ['calculator', 'unit_converter', 'date_calculator', 'search_knowledge_base'],\n    memory: {\n      type: 'episodic',\n      window_size: 12,\n      summarize_after: 30\n    },\n    planning: {\n      strategy: 'sequential',\n      max_steps: 6,\n      max_retries: 2,\n      think_before_acting: true\n    },\n    validation: {\n      require_reasoning: true,\n      min_response_length: 20,\n      forbidden_phrases: [\"I don't know\", \"I cannot determine\"]\n    }\n  },\n  data_analyst: {\n    identity: {\n      name: 'DataAnalystBot',\n      version: '2.0.0',\n      description: 'Performs statistical analysis and data summarization',\n      author: 'Cognitive Blueprint Framework'\n    },\n    goals: [\n      'Compute descriptive statistics for given data',\n      'Identify trends and anomalies',\n      'Present findings clearly with numbers'\n    ],\n    constraints: [\n      'Only work with numerical data',\n      'Always report uncertainty when sample size is small (< 5 items)'\n    ],\n    tools: ['calculator', 'statistics_engine', 'list_sorter'],\n    memory: {\n      type: 'short_term',\n      window_size: 6,\n      summarize_after: 20\n    },\n    planning: {\n      strategy: 'hierarchical',\n      max_steps: 10,\n      max_retries: 3,\n      think_before_acting: true\n    },\n    validation: {\n      require_reasoning: true,\n      min_response_length: 30,\n      forbidden_phrases: []\n    }\n  }\n};\n\nconst blueprint = BLUEPRINTS[blueprintName] || BLUEPRINTS.research;\n\nreturn [{\n  json: {\n    task,\n    blueprint,\n    blueprintName,\n    // Initialize memory store\n    memory: {\n      history: [],\n      summary: '',\n      message_count: 0\n    },\n    // Execution metadata\n    execution: {\n      startTime: new Date().toISOString(),\n      phases: []\n    }\n  }\n}];\n"
+        "jsCode": "// ============================================================\n// NODE: Load Cognitive Blueprint\n// Maps to: CognitiveBlueprint, BlueprintIdentity, BlueprintMemory,\n//          BlueprintPlanning, BlueprintValidation from the framework\n// ============================================================\n\n// Blueprint can come from chat input or use defaults\nconst input = $input.first().json;\nconst task = input.chatInput || input.task || 'Analyze the provided data';\nconst blueprintName = input.blueprint || 'research';\n\n// Cognitive Blueprint definitions (equivalent to YAML configs)\nconst BLUEPRINTS = {\n  research: {\n    identity: {\n      name: 'ResearchBot',\n      version: '1.2.0',\n      description: 'Answers research questions using calculation and reasoning',\n      author: 'Cognitive Blueprint Framework'\n    },\n    goals: [\n      'Answer user questions accurately using available tools',\n      'Show step-by-step reasoning for all answers',\n      'Cite the method used for each calculation'\n    ],\n    constraints: [\n      'Never fabricate numbers or statistics',\n      'Always validate mathematical results before reporting',\n      'Do not answer questions outside your tool capabilities'\n    ],\n    tools: ['calculator', 'unit_converter', 'date_calculator', 'search_knowledge_base'],\n    memory: {\n      type: 'episodic',\n      window_size: 12,\n      summarize_after: 30\n    },\n    planning: {\n      strategy: 'sequential',\n      max_steps: 6,\n      max_retries: 2,\n      think_before_acting: true\n    },\n    validation: {\n      require_reasoning: true,\n      min_response_length: 20,\n      forbidden_phrases: [\"I don't know\", \"I cannot determine\"]\n    }\n  },\n  data_analyst: {\n    identity: {\n      name: 'DataAnalystBot',\n      version: '2.0.0',\n      description: 'Performs statistical analysis and data summarization',\n      author: 'Cognitive Blueprint Framework'\n    },\n    goals: [\n      'Compute descriptive statistics for given data',\n      'Identify trends and anomalies',\n      'Present findings clearly with numbers'\n    ],\n    constraints: [\n      'Only work with numerical data',\n      'Always report uncertainty when sample size is small (< 5 items)'\n    ],\n    tools: ['calculator', 'statistics_engine', 'list_sorter'],\n    memory: {\n      type: 'short_term',\n      window_size: 6,\n      summarize_after: 20\n    },\n    planning: {\n      strategy: 'hierarchical',\n      max_steps: 10,\n      max_retries: 3,\n      think_before_acting: true\n    },\n    validation: {\n      require_reasoning: true,\n      min_response_length: 30,\n      forbidden_phrases: []\n    }\n  }\n};\n\nconst blueprint = BLUEPRINTS[blueprintName] || BLUEPRINTS.research;\n\nreturn [{\n  json: {\n    task,\n    blueprint,\n    blueprintName,\n    // Initialize memory store\n    memory: {\n      history: [],\n      summary: '',\n      message_count: 0\n    },\n    // Execution metadata\n    execution: {\n      startTime: new Date().toISOString(),\n      phases: []\n    }\n  }\n}];\n"
       },
       "id": "load-blueprint",
       "name": "Load Cognitive Blueprint",
@@ -299,7 +296,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// NODE: Format Response\n// Maps to: RuntimeAgent._display_answer() and _display_plan()\n// Builds the final structured response\n// ============================================================\n\nconst data = $input.first().json;\n\nconst response = {\n  agent: {\n    name: data.blueprint.identity.name,\n    version: data.blueprint.identity.version,\n    strategy: data.plan.strategy\n  },\n  task: data.task,\n  plan: {\n    total_steps: data.plan.steps.length,\n    steps: data.plan.steps.map(s => ({\n      step_id: s.step_id,\n      description: s.description,\n      tool: s.tool || 'reasoning',\n      reasoning: s.reasoning\n    }))\n  },\n  execution: {\n    results: data.stepResults.map(r => ({\n      step_id: r.step_id,\n      success: r.success,\n      tool_used: r.tool_used || 'reasoning',\n      output_preview: (r.output || '').substring(0, 200)\n    }))\n  },\n  final_answer: data.finalAnswer,\n  validation: data.validation,\n  memory: {\n    messages_stored: data.memory.message_count,\n    has_summary: !!data.memory.summary\n  },\n  execution_metadata: data.execution\n};\n\nreturn [{ json: response }];\n"
+        "jsCode": "// ============================================================\n// NODE: Format Response\n// Maps to: RuntimeAgent._display_answer() and _display_plan()\n// Builds the final response for the n8n Chat widget\n// The Chat Trigger expects { output: string } to display in chat\n// ============================================================\n\nconst data = $input.first().json;\n\n// Build a readable chat response from the structured data\nconst stepDetails = data.stepResults\n  .map(r => `  Step ${r.step_id} [${r.tool_used || 'reasoning'}]: ${(r.output || '').substring(0, 200)}`)\n  .join('\\n');\n\nconst validationNote = data.validation.passed\n  ? ''\n  : `\\n\\n---\\n_Validation notes: ${data.validation.issues.join('; ')}_`;\n\nconst chatOutput = `${data.finalAnswer}${validationNote}`;\n\nreturn [{\n  json: {\n    output: chatOutput\n  }\n}];\n"
       },
       "id": "format-response",
       "name": "Format Response",
@@ -309,19 +306,7 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify($json) }}",
-        "options": {}
-      },
-      "id": "webhook-response",
-      "name": "Webhook Response",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [3740, 300]
-    },
-    {
-      "parameters": {
-        "jsCode": "// ============================================================\n// NODE: Retry Handler\n// Maps to: blueprint.planning.max_retries logic\n// Handles validation failures by re-planning with feedback\n// ============================================================\n\nconst data = $input.first().json;\nconst retryCount = (data.execution.retryCount || 0) + 1;\nconst maxRetries = data.blueprint.planning.max_retries;\n\nif (retryCount > maxRetries) {\n  // Max retries exceeded, return with warning\n  return [{\n    json: {\n      ...data,\n      finalAnswer: data.finalAnswer + '\\n\\n[Note: Validation issues were detected but max retries exceeded. Issues: ' + data.validation.issues.join('; ') + ']',\n      validation: { ...data.validation, passed: true, score: data.validation.score },\n      execution: { ...data.execution, retryCount }\n    }\n  }];\n}\n\n// Retry: update task with validation feedback\nreturn [{\n  json: {\n    task: data.task + '\\n\\nIMPORTANT: Previous attempt had these issues: ' + data.validation.issues.join('; ') + '. Please address them.',\n    blueprint: data.blueprint,\n    blueprintName: data.blueprintName,\n    memory: data.memory,\n    execution: { ...data.execution, retryCount },\n    toolRegistry: data.toolRegistry || {},\n    toolDescriptions: data.toolDescriptions || '',\n    allowedTools: data.allowedTools || []\n  }\n}];\n"
+        "jsCode": "// ============================================================\n// NODE: Retry Handler\n// Maps to: blueprint.planning.max_retries logic\n// Handles validation failures by re-planning with feedback\n// ============================================================\n\nconst data = $input.first().json;\nconst retryCount = (data.execution.retryCount || 0) + 1;\nconst maxRetries = data.blueprint.planning.max_retries;\n\nif (retryCount > maxRetries) {\n  // Max retries exceeded - return answer with warning via chat output\n  const warningAnswer = data.finalAnswer + '\\n\\n---\\n_Note: Validation issues were detected but max retries exceeded. Issues: ' + data.validation.issues.join('; ') + '_';\n\n  return [{\n    json: {\n      output: warningAnswer\n    }\n  }];\n}\n\n// Retry: update task with validation feedback and loop back to planner\nreturn [{\n  json: {\n    task: data.task + '\\n\\nIMPORTANT: Previous attempt had these issues: ' + data.validation.issues.join('; ') + '. Please address them.',\n    blueprint: data.blueprint,\n    blueprintName: data.blueprintName,\n    memory: data.memory,\n    execution: { ...data.execution, retryCount },\n    toolRegistry: data.toolRegistry || {},\n    toolDescriptions: data.toolDescriptions || '',\n    allowedTools: data.allowedTools || []\n  }\n}];\n"
       },
       "id": "retry-handler",
       "name": "Retry Handler",
@@ -331,7 +316,7 @@
     }
   ],
   "connections": {
-    "Webhook Trigger": {
+    "Chat Trigger": {
       "main": [
         [{ "node": "Load Cognitive Blueprint", "type": "main", "index": 0 }]
       ]
@@ -418,11 +403,6 @@
       "main": [
         [{ "node": "Build Planner Prompt", "type": "main", "index": 0 }]
       ]
-    },
-    "Format Response": {
-      "main": [
-        [{ "node": "Webhook Response", "type": "main", "index": 0 }]
-      ]
     }
   },
   "pinData": {},
@@ -434,9 +414,10 @@
     { "name": "agentic-ai" },
     { "name": "cognitive-blueprint" },
     { "name": "runtime-agent" },
-    { "name": "anthropic-claude" }
+    { "name": "anthropic-claude" },
+    { "name": "chat-trigger" }
   ],
   "triggerCount": 0,
   "updatedAt": "2026-03-08T00:00:00.000Z",
-  "versionId": "2"
+  "versionId": "3"
 }
