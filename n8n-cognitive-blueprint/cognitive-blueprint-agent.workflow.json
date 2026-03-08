@@ -1,0 +1,432 @@
+{
+  "name": "Cognitive Blueprint Runtime Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cognitive-agent",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 300],
+      "webhookId": "cognitive-agent-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NODE: Load Cognitive Blueprint\n// Maps to: CognitiveBlueprint, BlueprintIdentity, BlueprintMemory,\n//          BlueprintPlanning, BlueprintValidation from the framework\n// ============================================================\n\nconst yaml = require('js-yaml');\n\n// Blueprint can come from webhook body or use defaults\nconst input = $input.first().json;\nconst task = input.task || 'Analyze the provided data';\nconst blueprintName = input.blueprint || 'research';\n\n// Cognitive Blueprint definitions (equivalent to YAML configs)\nconst BLUEPRINTS = {\n  research: {\n    identity: {\n      name: 'ResearchBot',\n      version: '1.2.0',\n      description: 'Answers research questions using calculation and reasoning',\n      author: 'Cognitive Blueprint Framework'\n    },\n    goals: [\n      'Answer user questions accurately using available tools',\n      'Show step-by-step reasoning for all answers',\n      'Cite the method used for each calculation'\n    ],\n    constraints: [\n      'Never fabricate numbers or statistics',\n      'Always validate mathematical results before reporting',\n      'Do not answer questions outside your tool capabilities'\n    ],\n    tools: ['calculator', 'unit_converter', 'date_calculator', 'search_knowledge_base'],\n    memory: {\n      type: 'episodic',\n      window_size: 12,\n      summarize_after: 30\n    },\n    planning: {\n      strategy: 'sequential',\n      max_steps: 6,\n      max_retries: 2,\n      think_before_acting: true\n    },\n    validation: {\n      require_reasoning: true,\n      min_response_length: 20,\n      forbidden_phrases: [\"I don't know\", \"I cannot determine\"]\n    }\n  },\n  data_analyst: {\n    identity: {\n      name: 'DataAnalystBot',\n      version: '2.0.0',\n      description: 'Performs statistical analysis and data summarization',\n      author: 'Cognitive Blueprint Framework'\n    },\n    goals: [\n      'Compute descriptive statistics for given data',\n      'Identify trends and anomalies',\n      'Present findings clearly with numbers'\n    ],\n    constraints: [\n      'Only work with numerical data',\n      'Always report uncertainty when sample size is small (< 5 items)'\n    ],\n    tools: ['calculator', 'statistics_engine', 'list_sorter'],\n    memory: {\n      type: 'short_term',\n      window_size: 6,\n      summarize_after: 20\n    },\n    planning: {\n      strategy: 'hierarchical',\n      max_steps: 10,\n      max_retries: 3,\n      think_before_acting: true\n    },\n    validation: {\n      require_reasoning: true,\n      min_response_length: 30,\n      forbidden_phrases: []\n    }\n  }\n};\n\nconst blueprint = BLUEPRINTS[blueprintName] || BLUEPRINTS.research;\n\nreturn [{\n  json: {\n    task,\n    blueprint,\n    blueprintName,\n    // Initialize memory store\n    memory: {\n      history: [],\n      summary: '',\n      message_count: 0\n    },\n    // Execution metadata\n    execution: {\n      startTime: new Date().toISOString(),\n      phases: []\n    }\n  }\n}];\n"
+      },
+      "id": "load-blueprint",
+      "name": "Load Cognitive Blueprint",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NODE: Tool Registry\n// Maps to: ToolRegistry, ToolSpec, and all @registry.register tools\n// Registers available tools and their implementations\n// ============================================================\n\nconst data = $input.first().json;\nconst blueprint = data.blueprint;\n\n// Tool Registry - maps to the ToolRegistry class\nconst TOOL_REGISTRY = {\n  calculator: {\n    name: 'calculator',\n    description: 'Evaluates a safe mathematical expression',\n    parameters: { expression: 'A math expression string' },\n    returns: 'Numeric result as float'\n  },\n  unit_converter: {\n    name: 'unit_converter',\n    description: 'Converts between common units of measurement',\n    parameters: {\n      value: 'Numeric value to convert',\n      from_unit: 'Source unit (km, miles, kg, lbs, celsius, fahrenheit, liters, gallons, meters, feet)',\n      to_unit: 'Target unit'\n    },\n    returns: 'Converted value as string with units'\n  },\n  date_calculator: {\n    name: 'date_calculator',\n    description: 'Calculates days between two dates, or adds/subtracts days from a date',\n    parameters: {\n      operation: \"'days_between' or 'add_days'\",\n      date1: 'Date string in YYYY-MM-DD format',\n      date2: 'Second date or number of days'\n    },\n    returns: 'Result as string'\n  },\n  search_knowledge_base: {\n    name: 'search_knowledge_base',\n    description: 'Searches a knowledge base for information on a topic',\n    parameters: { topic: 'Topic to look up' },\n    returns: 'Short text summary'\n  },\n  statistics_engine: {\n    name: 'statistics_engine',\n    description: 'Computes descriptive statistics on a list of numbers',\n    parameters: { numbers: 'Comma-separated list of numbers' },\n    returns: 'JSON with mean, median, std_dev, min, max, count'\n  },\n  list_sorter: {\n    name: 'list_sorter',\n    description: 'Sorts a comma-separated list of numbers',\n    parameters: { numbers: 'Comma-separated numbers', order: \"'asc' or 'desc'\" },\n    returns: 'Sorted comma-separated list'\n  }\n};\n\n// Build tool descriptions for allowed tools only\nconst allowedTools = blueprint.tools || [];\nconst toolDescriptions = allowedTools\n  .filter(t => TOOL_REGISTRY[t])\n  .map(t => {\n    const spec = TOOL_REGISTRY[t];\n    const params = Object.entries(spec.parameters)\n      .map(([k, v]) => `${k}: ${v}`)\n      .join(', ');\n    return `- ${spec.name}(${params})\\n  Description: ${spec.description}\\n  Returns: ${spec.returns}`;\n  })\n  .join('\\n\\n');\n\nreturn [{\n  json: {\n    ...data,\n    toolRegistry: TOOL_REGISTRY,\n    toolDescriptions,\n    allowedTools\n  }\n}];\n"
+      },
+      "id": "tool-registry",
+      "name": "Tool Registry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{ $json.plannerSystemPrompt }}"
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.plannerUserPrompt }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 1200,
+          "temperature": 0.2
+        }
+      },
+      "id": "planner-llm",
+      "name": "Planner LLM Call",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [1100, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NODE: Build Planner Prompt\n// Maps to: Planner._build_planner_prompt() and Planner.plan()\n// Constructs the system and user prompts for plan generation\n// ============================================================\n\nconst data = $input.first().json;\nconst bp = data.blueprint;\n\nconst plannerSystemPrompt = `You are ${bp.identity.name}, version ${bp.identity.version}.\n${bp.identity.description}\n\n## Your Goals:\n${bp.goals.map(g => `  - ${g}`).join('\\n')}\n\n## Your Constraints:\n${bp.constraints.map(c => `  - ${c}`).join('\\n')}\n\n## Available Tools:\n${data.toolDescriptions}\n\n## Planning Strategy: ${bp.planning.strategy}\n## Max Steps: ${bp.planning.max_steps}\n\nGiven a user task, produce a JSON execution plan with this exact structure:\n{\n  \"steps\": [\n    {\n      \"step_id\": 1,\n      \"description\": \"What this step does\",\n      \"tool\": \"tool_name or null if no tool needed\",\n      \"tool_args\": {\"arg1\": \"value1\"},\n      \"reasoning\": \"Why this step is needed\"\n    }\n  ]\n}\n\nRules:\n- Only use tools listed above\n- Set tool to null for pure reasoning steps\n- Keep steps <= ${bp.planning.max_steps}\n- Return ONLY valid JSON, no markdown fences`;\n\nconst plannerUserPrompt = `Create a plan to complete this task: ${data.task}`;\n\n// Add memory context if available\nlet memoryContext = '';\nif (data.memory && data.memory.summary) {\n  memoryContext = `\\n[Memory Summary]: ${data.memory.summary}`;\n}\n\nreturn [{\n  json: {\n    ...data,\n    plannerSystemPrompt: plannerSystemPrompt + memoryContext,\n    plannerUserPrompt\n  }\n}];\n"
+      },
+      "id": "build-planner-prompt",
+      "name": "Build Planner Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NODE: Parse Plan\n// Maps to: Plan, PlanStep dataclasses\n// Parses the LLM response into structured plan steps\n// ============================================================\n\nconst data = $input.first().json;\nlet llmResponse = '';\n\n// Handle different response shapes from the OpenAI node\nif (data.message && data.message.content) {\n  llmResponse = data.message.content;\n} else if (data.text) {\n  llmResponse = data.text;\n} else if (data.choices && data.choices[0]) {\n  llmResponse = data.choices[0].message.content;\n} else {\n  llmResponse = JSON.stringify(data);\n}\n\n// Clean up response\nllmResponse = llmResponse.replace(/```json/g, '').replace(/```/g, '').trim();\n\nlet plan;\ntry {\n  plan = JSON.parse(llmResponse);\n} catch (e) {\n  // Fallback: create a single reasoning step\n  plan = {\n    steps: [{\n      step_id: 1,\n      description: 'Analyze and respond to the task',\n      tool: null,\n      tool_args: {},\n      reasoning: 'Direct reasoning approach'\n    }]\n  };\n}\n\n// Retrieve the upstream data by reading from the workflow context\n// We pass it forward from the planner prompt node\nconst upstreamData = $('Build Planner Prompt').first().json;\n\nreturn [{\n  json: {\n    task: upstreamData.task,\n    blueprint: upstreamData.blueprint,\n    blueprintName: upstreamData.blueprintName,\n    memory: upstreamData.memory,\n    execution: upstreamData.execution,\n    toolRegistry: upstreamData.toolRegistry,\n    toolDescriptions: upstreamData.toolDescriptions,\n    allowedTools: upstreamData.allowedTools,\n    plan: {\n      task: upstreamData.task,\n      steps: plan.steps,\n      strategy: upstreamData.blueprint.planning.strategy\n    },\n    currentStepIndex: 0,\n    stepResults: []\n  }\n}];\n"
+      },
+      "id": "parse-plan",
+      "name": "Parse Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NODE: Execute Step (Tool Router)\n// Maps to: Executor.execute_plan() - the step execution loop\n// Routes each plan step to the appropriate tool or reasoning\n// ============================================================\n\nconst data = $input.first().json;\nconst stepIndex = data.currentStepIndex;\nconst steps = data.plan.steps;\n\nif (stepIndex >= steps.length) {\n  // All steps complete, go to synthesis\n  return [{\n    json: {\n      ...data,\n      allStepsComplete: true\n    }\n  }];\n}\n\nconst step = steps[stepIndex];\nlet result = { step_id: step.step_id, success: false, output: '', tool_used: null, error: null };\n\ntry {\n  if (step.tool && step.tool !== 'null') {\n    // Tool execution - maps to registry.call()\n    const args = step.tool_args || {};\n    result.tool_used = step.tool;\n\n    switch (step.tool) {\n      case 'calculator': {\n        const expr = args.expression || '';\n        // Safe math evaluation\n        const allowed = { Math, abs: Math.abs, round: Math.round, pow: Math.pow,\n          sqrt: Math.sqrt, ceil: Math.ceil, floor: Math.floor, PI: Math.PI, E: Math.E,\n          log: Math.log, sin: Math.sin, cos: Math.cos, tan: Math.tan };\n        try {\n          const fn = new Function(...Object.keys(allowed), `return (${expr})`);\n          result.output = String(fn(...Object.values(allowed)));\n          result.success = true;\n        } catch (e) {\n          result.output = `Error: ${e.message}`;\n          result.error = e.message;\n        }\n        break;\n      }\n      case 'unit_converter': {\n        const value = parseFloat(args.value);\n        const from = (args.from_unit || '').toLowerCase();\n        const to = (args.to_unit || '').toLowerCase();\n        const conversions = {\n          'km_miles': v => v * 0.621371,\n          'miles_km': v => v * 1.60934,\n          'kg_lbs': v => v * 2.20462,\n          'lbs_kg': v => v / 2.20462,\n          'celsius_fahrenheit': v => v * 9/5 + 32,\n          'fahrenheit_celsius': v => (v - 32) * 5/9,\n          'liters_gallons': v => v * 0.264172,\n          'gallons_liters': v => v * 3.78541,\n          'meters_feet': v => v * 3.28084,\n          'feet_meters': v => v / 3.28084\n        };\n        const key = `${from}_${to}`;\n        if (conversions[key]) {\n          result.output = `${conversions[key](value).toFixed(4)} ${to}`;\n          result.success = true;\n        } else {\n          result.output = `Conversion from ${from} to ${to} not supported`;\n        }\n        break;\n      }\n      case 'date_calculator': {\n        const op = args.operation;\n        const d1 = new Date(args.date1);\n        if (op === 'days_between') {\n          const d2 = new Date(args.date2);\n          const days = Math.abs(Math.round((d2 - d1) / (1000 * 60 * 60 * 24)));\n          result.output = `${days} days between ${args.date1} and ${args.date2}`;\n        } else if (op === 'add_days') {\n          const newDate = new Date(d1.getTime() + parseInt(args.date2) * 86400000);\n          result.output = `${newDate.toISOString().split('T')[0]} (added ${args.date2} days to ${args.date1})`;\n        }\n        result.success = true;\n        break;\n      }\n      case 'search_knowledge_base': {\n        const topic = (args.topic || '').toLowerCase();\n        const stubs = {\n          'python': 'Python is a high-level programming language created by Guido van Rossum, released in 1991.',\n          'machine learning': 'Machine learning is a subset of AI enabling systems to learn from data without explicit programming.',\n          'eiffel tower': 'The Eiffel Tower is a wrought-iron lattice tower in Paris, France. Built in 1889, it stands 330 meters tall.',\n          'contract law': 'Contract law governs legally binding agreements between parties, covering formation, performance, breach, and remedies.',\n          'tort law': 'Tort law addresses civil wrongs that cause harm, including negligence, intentional torts, and strict liability.'\n        };\n        let found = 'No entry found. In production, this would query an external knowledge base.';\n        for (const [key, val] of Object.entries(stubs)) {\n          if (topic.includes(key)) { found = val; break; }\n        }\n        result.output = found;\n        result.success = true;\n        break;\n      }\n      case 'statistics_engine': {\n        const nums = (args.numbers || '').split(',').map(x => parseFloat(x.trim())).filter(x => !isNaN(x));\n        const n = nums.length;\n        if (n === 0) { result.output = 'Error: No valid numbers provided'; break; }\n        const mean = nums.reduce((a, b) => a + b, 0) / n;\n        const sorted = [...nums].sort((a, b) => a - b);\n        const mid = Math.floor(n / 2);\n        const median = n % 2 ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2;\n        const stdDev = Math.sqrt(nums.reduce((s, x) => s + Math.pow(x - mean, 2), 0) / n);\n        result.output = JSON.stringify({\n          count: n,\n          mean: Math.round(mean * 10000) / 10000,\n          median: Math.round(median * 10000) / 10000,\n          std_dev: Math.round(stdDev * 10000) / 10000,\n          min: Math.min(...nums),\n          max: Math.max(...nums),\n          range: Math.max(...nums) - Math.min(...nums)\n        }, null, 2);\n        result.success = true;\n        break;\n      }\n      case 'list_sorter': {\n        const nums = (args.numbers || '').split(',').map(x => parseFloat(x.trim())).filter(x => !isNaN(x));\n        const order = args.order || 'asc';\n        nums.sort((a, b) => order === 'desc' ? b - a : a - b);\n        result.output = nums.join(', ');\n        result.success = true;\n        break;\n      }\n      default:\n        result.output = `Tool '${step.tool}' not found in registry`;\n        result.error = 'Tool not found';\n    }\n  } else {\n    // Pure reasoning step - needs LLM call\n    // Mark for LLM reasoning (handled by next node)\n    result.output = '__NEEDS_LLM_REASONING__';\n    result.tool_used = null;\n    result.success = true;\n  }\n} catch (e) {\n  result.error = e.message;\n  result.output = `Error: ${e.message}`;\n}\n\nconst updatedResults = [...data.stepResults, result];\n\nreturn [{\n  json: {\n    ...data,\n    currentStep: step,\n    currentStepResult: result,\n    stepResults: updatedResults,\n    currentStepIndex: stepIndex + 1,\n    needsLLMReasoning: result.output === '__NEEDS_LLM_REASONING__',\n    allStepsComplete: (stepIndex + 1) >= steps.length\n  }\n}];\n"
+      },
+      "id": "execute-step",
+      "name": "Execute Step",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1540, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "needs-reasoning",
+              "leftValue": "={{ $json.needsLLMReasoning }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-reasoning",
+      "name": "Needs LLM Reasoning?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1760, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NODE: Build Reasoning Prompt\n// Maps to: Executor reasoning branch (when step.tool is null)\n// ============================================================\n\nconst data = $input.first().json;\nconst step = data.currentStep;\nconst bp = data.blueprint;\n\nconst contextText = data.stepResults\n  .filter(r => r.output !== '__NEEDS_LLM_REASONING__')\n  .map(r => `Step ${r.step_id} result: ${r.output}`)\n  .join('\\n');\n\nconst userPrompt = contextText\n  ? `Previous results:\\n${contextText}\\n\\nNow complete this step: ${step.description}\\nReasoning hint: ${step.reasoning}`\n  : `Complete this step: ${step.description}\\nReasoning hint: ${step.reasoning}`;\n\nconst systemPrompt = `You are ${bp.identity.name}. ${bp.identity.description}. Constraints: ${bp.constraints.join('; ')}`;\n\nreturn [{\n  json: {\n    ...data,\n    reasoningSystemPrompt: systemPrompt,\n    reasoningUserPrompt: userPrompt\n  }\n}];\n"
+      },
+      "id": "build-reasoning-prompt",
+      "name": "Build Reasoning Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1980, 160]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{ $json.reasoningSystemPrompt }}"
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.reasoningUserPrompt }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 500,
+          "temperature": 0.3
+        }
+      },
+      "id": "reasoning-llm",
+      "name": "Reasoning LLM Call",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [2200, 160],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NODE: Update Reasoning Result\n// Updates the step result with LLM reasoning output\n// ============================================================\n\nconst upstreamData = $('Build Reasoning Prompt').first().json;\nconst llmData = $input.first().json;\n\nlet reasoningOutput = '';\nif (llmData.message && llmData.message.content) {\n  reasoningOutput = llmData.message.content;\n} else if (llmData.text) {\n  reasoningOutput = llmData.text;\n} else {\n  reasoningOutput = JSON.stringify(llmData);\n}\n\n// Update the last step result with the reasoning output\nconst results = [...upstreamData.stepResults];\nresults[results.length - 1] = {\n  ...results[results.length - 1],\n  output: reasoningOutput,\n  success: true\n};\n\nreturn [{\n  json: {\n    task: upstreamData.task,\n    blueprint: upstreamData.blueprint,\n    blueprintName: upstreamData.blueprintName,\n    memory: upstreamData.memory,\n    execution: upstreamData.execution,\n    toolRegistry: upstreamData.toolRegistry,\n    toolDescriptions: upstreamData.toolDescriptions,\n    allowedTools: upstreamData.allowedTools,\n    plan: upstreamData.plan,\n    currentStepIndex: upstreamData.currentStepIndex,\n    stepResults: results,\n    allStepsComplete: upstreamData.allStepsComplete\n  }\n}];\n"
+      },
+      "id": "update-reasoning",
+      "name": "Update Reasoning Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2420, 160]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "steps-remaining",
+              "leftValue": "={{ $json.allStepsComplete }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-more-steps",
+      "name": "More Steps?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2200, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NODE: Build Synthesis Prompt\n// Maps to: Executor._synthesize()\n// Combines all step results into a final answer\n// ============================================================\n\nconst data = $input.first().json;\nconst bp = data.blueprint;\n\nconst stepsSummary = data.stepResults\n  .map(r => `Step ${r.step_id} (${r.success ? 'SUCCESS' : 'FAILED'}): ${(r.output || '').substring(0, 300)}`)\n  .join('\\n');\n\nconst synthesisUserPrompt = `Original task: ${data.task}\\n\\nStep results:\\n${stepsSummary}\\n\\nProvide a clear, complete final answer. Integrate all step results.`;\n\nconst synthesisSystemPrompt = `You are ${bp.identity.name}. ` +\n  (bp.validation.require_reasoning ? 'Always show your reasoning. ' : '') +\n  `Goals: ${bp.goals.join('; ')}`;\n\n// Add memory context\nlet memoryMessages = [];\nif (data.memory && data.memory.summary) {\n  memoryMessages.push({ role: 'system', content: `[Memory Summary]: ${data.memory.summary}` });\n}\n\nreturn [{\n  json: {\n    ...data,\n    synthesisSystemPrompt,\n    synthesisUserPrompt,\n    memoryMessages\n  }\n}];\n"
+      },
+      "id": "build-synthesis",
+      "name": "Build Synthesis Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2640, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{ $json.synthesisSystemPrompt }}"
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.synthesisUserPrompt }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 600,
+          "temperature": 0.3
+        }
+      },
+      "id": "synthesis-llm",
+      "name": "Synthesis LLM Call",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [2860, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NODE: Validation Engine\n// Maps to: Validator.validate() and ValidationResult\n// Validates the final answer against blueprint rules\n// ============================================================\n\nconst synthesisData = $('Build Synthesis Prompt').first().json;\nconst llmData = $input.first().json;\n\nlet finalAnswer = '';\nif (llmData.message && llmData.message.content) {\n  finalAnswer = llmData.message.content;\n} else if (llmData.text) {\n  finalAnswer = llmData.text;\n} else {\n  finalAnswer = JSON.stringify(llmData);\n}\n\nconst bp = synthesisData.blueprint;\nconst v = bp.validation;\nconst issues = [];\n\n// Rule 1: Minimum response length\nif (finalAnswer.length < v.min_response_length) {\n  issues.push(`Response too short: ${finalAnswer.length} chars (min: ${v.min_response_length})`);\n}\n\n// Rule 2: Forbidden phrases\nconst answerLower = finalAnswer.toLowerCase();\nfor (const phrase of (v.forbidden_phrases || [])) {\n  if (answerLower.includes(phrase.toLowerCase())) {\n    issues.push(`Forbidden phrase detected: '${phrase}'`);\n  }\n}\n\n// Rule 3: Reasoning indicators\nif (v.require_reasoning) {\n  const indicators = ['because', 'therefore', 'since', 'step', 'first',\n    'result', 'calculated', 'computed', 'found that', 'analysis', 'based on'];\n  if (!indicators.some(ind => answerLower.includes(ind))) {\n    issues.push('Response lacks visible reasoning or explanation');\n  }\n}\n\nconst validationResult = {\n  passed: issues.length === 0,\n  issues,\n  score: Math.max(0.0, 1.0 - issues.length * 0.25)\n};\n\n// Update memory\nconst memory = synthesisData.memory || { history: [], summary: '', message_count: 0 };\nmemory.history.push({\n  role: 'user',\n  content: synthesisData.task,\n  timestamp: new Date().toISOString()\n});\nmemory.history.push({\n  role: 'assistant',\n  content: finalAnswer,\n  timestamp: new Date().toISOString()\n});\nmemory.message_count = memory.history.length;\n\n// Check if memory compression needed (maps to MemoryManager._compress_memory)\nconst memoryConfig = bp.memory;\nif (memory.history.length > (memoryConfig.summarize_after || 20)) {\n  const toCompress = memory.history.slice(0, -memoryConfig.window_size);\n  memory.history = memory.history.slice(-memoryConfig.window_size);\n  const compressedText = toCompress.map(e => `${e.role}: ${(e.content || '').substring(0, 200)}`).join('\\n');\n  memory.summary += ` [Compressed ${toCompress.length} messages]`;\n}\n\nreturn [{\n  json: {\n    task: synthesisData.task,\n    blueprint: bp,\n    blueprintName: synthesisData.blueprintName,\n    plan: synthesisData.plan,\n    stepResults: synthesisData.stepResults,\n    finalAnswer,\n    validation: validationResult,\n    memory,\n    execution: {\n      ...synthesisData.execution,\n      endTime: new Date().toISOString(),\n      phases: ['planning', 'execution', 'synthesis', 'validation']\n    }\n  }\n}];\n"
+      },
+      "id": "validation-engine",
+      "name": "Validation Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3080, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "validation-failed",
+              "leftValue": "={{ $json.validation.passed }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-validation",
+      "name": "Validation Passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3300, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NODE: Format Response\n// Maps to: RuntimeAgent._display_answer() and _display_plan()\n// Builds the final structured response\n// ============================================================\n\nconst data = $input.first().json;\n\nconst response = {\n  agent: {\n    name: data.blueprint.identity.name,\n    version: data.blueprint.identity.version,\n    strategy: data.plan.strategy\n  },\n  task: data.task,\n  plan: {\n    total_steps: data.plan.steps.length,\n    steps: data.plan.steps.map(s => ({\n      step_id: s.step_id,\n      description: s.description,\n      tool: s.tool || 'reasoning',\n      reasoning: s.reasoning\n    }))\n  },\n  execution: {\n    results: data.stepResults.map(r => ({\n      step_id: r.step_id,\n      success: r.success,\n      tool_used: r.tool_used || 'reasoning',\n      output_preview: (r.output || '').substring(0, 200)\n    }))\n  },\n  final_answer: data.finalAnswer,\n  validation: data.validation,\n  memory: {\n    messages_stored: data.memory.message_count,\n    has_summary: !!data.memory.summary\n  },\n  execution_metadata: data.execution\n};\n\nreturn [{ json: response }];\n"
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3520, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [3740, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NODE: Retry Handler\n// Maps to: blueprint.planning.max_retries logic\n// Handles validation failures by re-planning with feedback\n// ============================================================\n\nconst data = $input.first().json;\nconst retryCount = (data.execution.retryCount || 0) + 1;\nconst maxRetries = data.blueprint.planning.max_retries;\n\nif (retryCount > maxRetries) {\n  // Max retries exceeded, return with warning\n  return [{\n    json: {\n      ...data,\n      finalAnswer: data.finalAnswer + '\\n\\n[Note: Validation issues were detected but max retries exceeded. Issues: ' + data.validation.issues.join('; ') + ']',\n      validation: { ...data.validation, passed: true, score: data.validation.score },\n      execution: { ...data.execution, retryCount }\n    }\n  }];\n}\n\n// Retry: update task with validation feedback\nreturn [{\n  json: {\n    task: data.task + '\\n\\nIMPORTANT: Previous attempt had these issues: ' + data.validation.issues.join('; ') + '. Please address them.',\n    blueprint: data.blueprint,\n    blueprintName: data.blueprintName,\n    memory: data.memory,\n    execution: { ...data.execution, retryCount },\n    toolRegistry: data.toolRegistry || {},\n    toolDescriptions: data.toolDescriptions || '',\n    allowedTools: data.allowedTools || []\n  }\n}];\n"
+      },
+      "id": "retry-handler",
+      "name": "Retry Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3520, 160]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [{ "node": "Load Cognitive Blueprint", "type": "main", "index": 0 }]
+      ]
+    },
+    "Load Cognitive Blueprint": {
+      "main": [
+        [{ "node": "Tool Registry", "type": "main", "index": 0 }]
+      ]
+    },
+    "Tool Registry": {
+      "main": [
+        [{ "node": "Build Planner Prompt", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Planner Prompt": {
+      "main": [
+        [{ "node": "Planner LLM Call", "type": "main", "index": 0 }]
+      ]
+    },
+    "Planner LLM Call": {
+      "main": [
+        [{ "node": "Parse Plan", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parse Plan": {
+      "main": [
+        [{ "node": "Execute Step", "type": "main", "index": 0 }]
+      ]
+    },
+    "Execute Step": {
+      "main": [
+        [{ "node": "Needs LLM Reasoning?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Needs LLM Reasoning?": {
+      "main": [
+        [{ "node": "Build Reasoning Prompt", "type": "main", "index": 0 }],
+        [{ "node": "More Steps?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Reasoning Prompt": {
+      "main": [
+        [{ "node": "Reasoning LLM Call", "type": "main", "index": 0 }]
+      ]
+    },
+    "Reasoning LLM Call": {
+      "main": [
+        [{ "node": "Update Reasoning Result", "type": "main", "index": 0 }]
+      ]
+    },
+    "Update Reasoning Result": {
+      "main": [
+        [{ "node": "More Steps?", "type": "main", "index": 0 }]
+      ]
+    },
+    "More Steps?": {
+      "main": [
+        [{ "node": "Build Synthesis Prompt", "type": "main", "index": 0 }],
+        [{ "node": "Execute Step", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Synthesis Prompt": {
+      "main": [
+        [{ "node": "Synthesis LLM Call", "type": "main", "index": 0 }]
+      ]
+    },
+    "Synthesis LLM Call": {
+      "main": [
+        [{ "node": "Validation Engine", "type": "main", "index": 0 }]
+      ]
+    },
+    "Validation Engine": {
+      "main": [
+        [{ "node": "Validation Passed?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Validation Passed?": {
+      "main": [
+        [{ "node": "Retry Handler", "type": "main", "index": 0 }],
+        [{ "node": "Format Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Retry Handler": {
+      "main": [
+        [{ "node": "Build Planner Prompt", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [{ "node": "Webhook Response", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "agentic-ai" },
+    { "name": "cognitive-blueprint" },
+    { "name": "runtime-agent" }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2026-03-08T00:00:00.000Z",
+  "versionId": "1"
+}
