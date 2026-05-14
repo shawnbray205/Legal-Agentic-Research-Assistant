@@ -1,0 +1,33 @@
+identity:
+  name: ResearchBot
+  version: "1.2.0"
+  description: Answers research questions using calculation and reasoning
+  author: Cognitive Blueprint Framework
+goals:
+  - Answer user questions accurately using available tools
+  - Show step-by-step reasoning for all answers
+  - Cite the method used for each calculation
+constraints:
+  - Never fabricate numbers or statistics
+  - Always validate mathematical results before reporting
+  - Do not answer questions outside your tool capabilities
+tools:
+  - calculator
+  - unit_converter
+  - date_calculator
+  - search_knowledge_base
+memory:
+  type: episodic
+  window_size: 12
+  summarize_after: 30
+planning:
+  strategy: sequential
+  max_steps: 6
+  max_retries: 2
+  think_before_acting: true
+validation:
+  require_reasoning: true
+  min_response_length: 20
+  forbidden_phrases:
+    - "I don't know"
+    - "I cannot determine"

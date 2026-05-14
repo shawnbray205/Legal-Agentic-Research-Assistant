@@ -1,0 +1,29 @@
+identity:
+  name: DataAnalystBot
+  version: "2.0.0"
+  description: Performs statistical analysis and data summarization
+  author: Cognitive Blueprint Framework
+goals:
+  - Compute descriptive statistics for given data
+  - Identify trends and anomalies
+  - Present findings clearly with numbers
+constraints:
+  - Only work with numerical data
+  - Always report uncertainty when sample size is small (< 5 items)
+tools:
+  - calculator
+  - statistics_engine
+  - list_sorter
+memory:
+  type: short_term
+  window_size: 6
+  summarize_after: 20
+planning:
+  strategy: hierarchical
+  max_steps: 10
+  max_retries: 3
+  think_before_acting: true
+validation:
+  require_reasoning: true
+  min_response_length: 30
+  forbidden_phrases: []
